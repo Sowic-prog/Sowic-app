@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f97316" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SOWIC" />
+  <title>SOWIC Asset Management</title>
+
+  <style>
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Hide scrollbar for Firefox and newer browsers using standard property */
+    @supports (scrollbar-width: none) {
+      .no-scrollbar {
+        scrollbar-width: none;
+      }
+    }
+
+    /* Hide scrollbar for IE and Edge */
+    .no-scrollbar {
+      -ms-overflow-style: none;
+    }
+
+    /* PRINT STYLES */
+    @media print {
+      body {
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* Hide UI Elements */
+      aside,
+      nav,
+      .fixed,
+      button,
+      .no-print,
+      [role="navigation"] {
+        display: none !important;
+      }
+
+      /* Adjust Layout */
+      main {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+      }
+
+      .shadow-sm,
+      .shadow-md,
+      .shadow-lg,
+      .shadow-xl,
+      .shadow-2xl {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+
+      /* Prevent breaking cards in middle of page */
+      .bg-white {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      /* Formatting for A4 */
+
+      @page {
+        size: A4;
+        margin: 1.5cm;
+      }
+
+      /* Show Print-only Header */
+      .print-header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #f97316;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+      }
+    }
+
+    /* Hidden by default in screen */
+    .print-header {
+      display: none;
+    }
+  </style>
+
+
+</head>
+
+<body class="bg-slate-100 text-slate-900 antialiased">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>

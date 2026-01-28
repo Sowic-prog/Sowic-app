@@ -1,0 +1,7 @@
+{
+  "name": "SOWIC sci crear con supabase",
+  "description": "Comprehensive asset management system for field and office operations.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

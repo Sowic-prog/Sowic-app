@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba Aislada de Gemini</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .box {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        pre {
+            background: #333;
+            color: #0f0;
+            padding: 15px;
+            overflow-x: auto;
+            border-radius: 5px;
+        }
+
+        .api-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        #status {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Prueba Aislada de API Key (Sin SDK)</h1>
+    <p>Esta página prueba tu API Key directamente contra los servidores de Google, sin pasar por la aplicación.</p>
+
+    <div class="box">
+        <label for="apiKey"><strong>Tu API Key:</strong></label><br>
+        <input type="text" id="apiKey" class="api-input" value="AIzaSyBCt30q36Vg5KySuvsWSpe1Ll-h4-fPSQE"
+            placeholder="Pega tu API Key aquí">
+        <br><small>Por defecto usa la última que diste (AIzaSyBC...)</small>
+    </div>
+
+    <button onclick="testGemini()">PROBAR CONEXIÓN AHORA</button>
+
+    <div id="status"></div>
+    <pre id="output">Esperando prueba...</pre>
+
+    <script>
+        async function testGemini() {
+            const keyInput = document.getElementById('apiKey');
+            const key = keyInput.value.trim();
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+
+            if (!key) { alert("¡Falta la API Key!"); return; }
+
+            output.innerText = "Conectando con Google...";
+            status.innerHTML = "⏳ Enviando petición REST...";
+
+            // URL directa REST (sin SDK)
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: "Responde solo con la palabra: 'EXITO'" }]
+                }]
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    status.innerHTML = "✅ <strong>¡FUNCIONÓ!</strong> La clave es válida y el modelo existe.";
+                    output.innerText = JSON.stringify(data, null, 2);
+                } else {
+                    status.innerHTML = "❌ <strong>FALLÓ</strong> La clave o el modelo tienen problemas.";
+                    output.innerText = "Error HTTP " + response.status + ":\n" + JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                status.innerHTML = "❌ <strong>ERROR DE RED</strong>";
+                output.innerText = "Error de conexión:\n" + error.message;
+            }
+        }
+    </script>
+</body>
+
+</html>
