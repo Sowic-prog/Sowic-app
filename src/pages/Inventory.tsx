@@ -56,6 +56,56 @@ const mapStaffFromDB = (data: any): Staff => ({
 
 type InventoryTab = 'consumables' | 'serialized';
 
+const InventoryListItem = React.memo(({ item, onClick, onUpdateQuantity, getStatusColor }: any) => {
+    return (
+        <div
+            onClick={() => onClick(item)} // OPEN DETAIL VIEW
+            className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden flex items-center justify-between group hover:border-orange-200 transition-all cursor-pointer optimize-visibility"
+        >
+            {item.type === 'Serializado' && (
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${item.status === 'Disponible' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            )}
+            <div className="pl-2">
+                <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-slate-800 text-sm">{item.name}</h3>
+                    {item.barcodeId && (
+                        <span className="text-[8px] font-mono bg-slate-100 px-1.5 py-0.5 rounded border text-slate-500">{item.barcodeId}</span>
+                    )}
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{item.category} • {item.location}</p>
+                {item.assignedTo && (
+                    <div className="flex items-center gap-1.5 mt-2 bg-slate-50 px-2 py-0.5 rounded-full w-fit border border-slate-100">
+                        <User size={10} className="text-orange-500" />
+                        <span className="text-[10px] font-bold text-slate-600">{item.assignedTo}</span>
+                    </div>
+                )}
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end gap-1">
+                    {/* Simulated Mini Barcode - Static for performance */}
+                    {item.barcodeId && (
+                        <div className="flex h-4 items-end gap-[1px] opacity-30">
+                            {[1, 0.6, 1, 0.4, 1, 1, 0.6, 1, 0.6, 1].map((h, i) => (
+                                <div key={i} className={`bg-black w-[1px] ${h === 1 ? 'h-full' : h === 0.6 ? 'h-[60%]' : 'h-[40%]'}`}></div>
+                            ))}
+                        </div>
+                    )}
+
+                    {item.type === 'Consumible' ? (
+                        <div className="flex items-center bg-slate-100 rounded-xl p-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => onUpdateQuantity(item.id, -1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 shadow-sm active:scale-90" aria-label="Disminuir cantidad"><Minus size={14} /></button>
+                            <span className="w-10 text-center font-black text-slate-800 text-sm">{item.quantity}</span>
+                            <button onClick={() => onUpdateQuantity(item.id, 1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-orange-500 shadow-sm active:scale-90" aria-label="Aumentar cantidad"><Plus size={14} /></button>
+                        </div>
+                    ) : (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-black border uppercase mt-1 ${getStatusColor(item.status)}`}>{item.status}</span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
 const Inventory: React.FC = () => {
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [dbProjects, setDbProjects] = useState<Project[]>([]);
@@ -116,7 +166,7 @@ const Inventory: React.FC = () => {
         minThreshold: 5,
         location: 'Pañol Central',
         unitPrice: 0,
-        status: 'Operativo',
+        status: 'Disponible',
         assignedTo: ''
     });
 
@@ -181,7 +231,7 @@ const Inventory: React.FC = () => {
                 setItems([newItem, ...items]);
                 setIsCreating(false);
                 setNewItemForm({
-                    name: '', barcodeId: '', category: 'Consumibles', type: 'Consumible', quantity: 1, minThreshold: 5, location: 'Pañol Central', unitPrice: 0, status: 'Operativo', assignedTo: ''
+                    name: '', barcodeId: '', category: 'Consumibles', type: 'Consumible', quantity: 1, minThreshold: 5, location: 'Pañol Central', unitPrice: 0, status: 'Disponible', assignedTo: ''
                 });
                 setStaffSearch('');
                 if (newItem.type === 'Serializado') setActiveTab('serialized');
@@ -268,7 +318,7 @@ const Inventory: React.FC = () => {
 
     const getStatusColor = (status?: string) => {
         switch (status) {
-            case 'Operativo': return 'text-green-600 bg-green-50 border-green-200';
+            case 'Disponible': return 'text-green-600 bg-green-50 border-green-200';
             case 'En Reparación': return 'text-orange-600 bg-orange-50 border-orange-200';
             case 'Vencido': return 'text-red-600 bg-red-50 border-red-200';
             default: return 'text-slate-600 bg-slate-50 border-slate-200';
@@ -770,7 +820,7 @@ const Inventory: React.FC = () => {
                                         className="w-full p-4 bg-white/10 border border-white/10 rounded-2xl text-sm font-bold text-white appearance-none"
                                         aria-label="Estado de Entrega"
                                     >
-                                        <option value="Operativo" className="bg-slate-800">Operativo</option>
+                                        <option value="Disponible" className="bg-slate-800">Disponible</option>
                                         <option value="En Reparación" className="bg-slate-800">Pendiente de Revisión</option>
                                     </select>
                                 </div>
@@ -876,52 +926,13 @@ const Inventory: React.FC = () => {
 
             <div className="space-y-4 pb-20 no-print">
                 {filteredItems.map(item => (
-                    <div
+                    <InventoryListItem
                         key={item.id}
-                        onClick={() => setSelectedItem(item)} // OPEN DETAIL VIEW
-                        className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden flex items-center justify-between group hover:border-orange-200 transition-all cursor-pointer"
-                    >
-                        {item.type === 'Serializado' && (
-                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${item.status === 'Operativo' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        )}
-                        <div className="pl-2">
-                            <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-bold text-slate-800 text-sm">{item.name}</h3>
-                                {item.barcodeId && (
-                                    <span className="text-[8px] font-mono bg-slate-100 px-1.5 py-0.5 rounded border text-slate-500">{item.barcodeId}</span>
-                                )}
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{item.category} • {item.location}</p>
-                            {item.assignedTo && (
-                                <div className="flex items-center gap-1.5 mt-2 bg-slate-50 px-2 py-0.5 rounded-full w-fit border border-slate-100">
-                                    <User size={10} className="text-orange-500" />
-                                    <span className="text-[10px] font-bold text-slate-600">{item.assignedTo}</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex flex-col items-end gap-1">
-                                {/* Simulated Mini Barcode */}
-                                {item.barcodeId && (
-                                    <div className="flex h-4 items-end gap-[1px] opacity-30">
-                                        {[...Array(10)].map((_, i) => (
-                                            <div key={i} className={`bg-black w-[1px] ${Math.random() > 0.5 ? 'h-full' : 'h-[60%]'}`}></div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {item.type === 'Consumible' ? (
-                                    <div className="flex items-center bg-slate-100 rounded-xl p-1 mt-1" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 shadow-sm active:scale-90" aria-label="Disminuir cantidad"><Minus size={14} /></button>
-                                        <span className="w-10 text-center font-black text-slate-800 text-sm">{item.quantity}</span>
-                                        <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-orange-500 shadow-sm active:scale-90" aria-label="Aumentar cantidad"><Plus size={14} /></button>
-                                    </div>
-                                ) : (
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-black border uppercase mt-1 ${getStatusColor(item.status)}`}>{item.status}</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                        item={item}
+                        onClick={setSelectedItem}
+                        onUpdateQuantity={updateQuantity}
+                        getStatusColor={getStatusColor}
+                    />
                 ))}
                 {filteredItems.length === 0 && (
                     <div className="text-center py-20 bg-white/50 rounded-[3rem] border border-dashed border-slate-200">

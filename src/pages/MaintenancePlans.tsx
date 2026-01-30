@@ -86,6 +86,45 @@ const getUUID = () => {
     });
 };
 
+const MaintenancePlanListItem = React.memo(({ plan, assets, onSelect }: any) => {
+    return (
+        <div
+            onClick={() => onSelect(plan)}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-slate-50 flex items-center gap-4 cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden group hover:border-indigo-100 optimize-visibility"
+        >
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500 group-hover:bg-indigo-600 transition-colors"></div>
+
+            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0 text-indigo-500 group-hover:scale-110 transition-transform">
+                <CalendarDays size={20} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-slate-800 text-sm truncate">{plan.title}</h3>
+                <p className="text-xs text-slate-500 truncate">{plan.assetName}</p>
+
+                <div className="flex items-center gap-3 mt-2">
+                    {(assets.find((a: any) => a.id === plan.assetId) as any)?.category === 'Inmueble/Infraestructura' ? (
+                        <span className="text-[10px] bg-slate-50 px-2 py-0.5 rounded text-slate-400 font-bold border border-slate-100 flex items-center gap-1 uppercase">
+                            <MapPin size={10} /> Infraestructura
+                        </span>
+                    ) : (
+                        plan.dailyUsageEstimate > 0 && (
+                            <span className="text-[10px] bg-slate-50 px-2 py-0.5 rounded text-slate-500 font-bold border border-slate-100 flex items-center gap-1">
+                                <TrendingUp size={10} /> {plan.dailyUsageEstimate} {plan.baseFrequencyUnit}/día
+                            </span>
+                        )
+                    )}
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                        {plan.events.length} Eventos Anuales
+                    </span>
+                </div>
+            </div>
+
+            <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+        </div>
+    );
+});
+
 const MaintenancePlans: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -1226,45 +1265,16 @@ const MaintenancePlans: React.FC = () => {
                 {plans
                     .filter(plan => filterAssetId === 'all' || plan.assetId === filterAssetId)
                     .map(plan => (
-                        <div
+                        <MaintenancePlanListItem
                             key={plan.id}
-                            onClick={() => {
-                                console.log("Selected Plan:", plan);
-                                setSelectedPlan(plan);
-                                fetchPlanEvents(plan.id);
+                            plan={plan}
+                            assets={assets}
+                            onSelect={(p: MaintenancePlan) => {
+                                console.log("Selected Plan:", p);
+                                setSelectedPlan(p);
+                                fetchPlanEvents(p.id);
                             }}
-                            className="bg-white p-5 rounded-2xl shadow-sm border border-slate-50 flex items-center gap-4 cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden group hover:border-indigo-100"
-                        >
-                            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500 group-hover:bg-indigo-600 transition-colors"></div>
-
-                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0 text-indigo-500 group-hover:scale-110 transition-transform">
-                                <CalendarDays size={20} />
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-slate-800 text-sm truncate">{plan.title}</h3>
-                                <p className="text-xs text-slate-500 truncate">{plan.assetName}</p>
-
-                                <div className="flex items-center gap-3 mt-2">
-                                    {(assets.find(a => a.id === plan.assetId) as any)?.category === 'Inmueble/Infraestructura' ? (
-                                        <span className="text-[10px] bg-slate-50 px-2 py-0.5 rounded text-slate-400 font-bold border border-slate-100 flex items-center gap-1 uppercase">
-                                            <MapPin size={10} /> Infraestructura
-                                        </span>
-                                    ) : (
-                                        plan.dailyUsageEstimate > 0 && (
-                                            <span className="text-[10px] bg-slate-50 px-2 py-0.5 rounded text-slate-500 font-bold border border-slate-100 flex items-center gap-1">
-                                                <TrendingUp size={10} /> {plan.dailyUsageEstimate} {plan.baseFrequencyUnit}/día
-                                            </span>
-                                        )
-                                    )}
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                                        {plan.events.length} Eventos Anuales
-                                    </span>
-                                </div>
-                            </div>
-
-                            <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
-                        </div>
+                        />
                     ))}
 
                 {plans.length === 0 ? (

@@ -136,6 +136,41 @@ const BarcodeView = ({ id }: { id: string }) => {
     );
 };
 
+const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: Asset, onClick: (asset: Asset) => void, getStatusColor: (status: AssetStatus) => string }) => {
+    return (
+        <div
+            onClick={() => onClick(asset)}
+            className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform relative overflow-hidden group optimize-visibility"
+        >
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(asset.status)}`}></div>
+
+            <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100">
+                <img src={asset.image} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                    {asset.ownership === 'Alquilado' && (
+                        <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">RENT</span>
+                    )}
+                </div>
+
+                <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
+
+                <div className="flex items-center gap-3 mt-2">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
+                        <Activity size={12} className="text-orange-500" />
+                        {asset.hours.toLocaleString()} {asset.type === 'Rodados' ? 'km' : 'hs'}
+                    </div>
+                </div>
+            </div>
+
+            <ChevronRight size={20} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
+        </div>
+    );
+});
+
 const Assets: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -2046,37 +2081,12 @@ const Assets: React.FC = () => {
             {/* Asset List */}
             <div className="space-y-4">
                 {filteredAssets.map(asset => (
-                    <div
+                    <AssetListItem
                         key={asset.id}
-                        onClick={() => setSelectedAsset(asset)}
-                        className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform relative overflow-hidden group"
-                    >
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(asset.status)}`}></div>
-
-                        <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100">
-                            <img src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start mb-1">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
-                                {asset.ownership === 'Alquilado' && (
-                                    <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">RENT</span>
-                                )}
-                            </div>
-
-                            <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
-
-                            <div className="flex items-center gap-3 mt-2">
-                                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
-                                    <Activity size={12} className="text-orange-500" />
-                                    {asset.hours.toLocaleString()} {asset.type === 'Rodados' ? 'km' : 'hs'}
-                                </div>
-                            </div>
-                        </div>
-
-                        <ChevronRight size={20} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
-                    </div>
+                        asset={asset}
+                        onClick={setSelectedAsset}
+                        getStatusColor={getStatusColor}
+                    />
                 ))}
 
                 {filteredAssets.length === 0 && (

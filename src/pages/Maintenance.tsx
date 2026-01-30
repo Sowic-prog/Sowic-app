@@ -53,6 +53,40 @@ interface PreventiveTask {
     nextDue: string;
 }
 
+const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPriorityColor }: any) => {
+    return (
+        <div onClick={() => onClick(order)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden cursor-pointer group hover:border-orange-200 transition-colors optimize-visibility"
+        >
+            <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase border-b border-l ${getPriorityColor(order.priority)}`}>{order.priority}</div>
+            <div>
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{order.id}</span>
+                <h4 className="font-bold text-slate-800 text-lg leading-tight mt-0.5">{order.title}</h4>
+                <p className="text-xs text-slate-500 mt-1">{order.assetName}</p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><CalendarIcon size={14} /> {order.dateStart}</span>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => onEdit(e, order)}
+                        className="p-1.5 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors z-10"
+                        title="Editar Orden"
+                    >
+                        <Edit3 size={16} />
+                    </button>
+                    <button
+                        onClick={(e) => onDelete(e, order.id)}
+                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+                        title="Eliminar Orden"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                    <ChevronRight size={18} className="text-slate-300 group-hover:text-orange-500" />
+                </div>
+            </div>
+        </div>
+    );
+});
+
 const Maintenance: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -1147,34 +1181,14 @@ const Maintenance: React.FC = () => {
             {activeTab === 'orders' && (
                 <div className="space-y-4 animate-in fade-in duration-300 relative">
                     {loading ? <div className="text-center p-10"><Loader2 className="animate-spin mx-auto" /> Cargo Órdenes...</div> : workOrders.map(order => (
-                        <div key={order.id} onClick={() => navigate(`/maintenance/ot/${order.id}`)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden cursor-pointer group hover:border-orange-200 transition-colors">
-                            <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase border-b border-l ${getPriorityColor(order.priority)}`}>{order.priority}</div>
-                            <div>
-                                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{order.id}</span>
-                                <h4 className="font-bold text-slate-800 text-lg leading-tight mt-0.5">{order.title}</h4>
-                                <p className="text-xs text-slate-500 mt-1">{order.assetName}</p>
-                            </div>
-                            <div className="pt-3 mt-3 border-t border-slate-50 flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><CalendarIcon size={14} /> {order.dateStart}</span>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={(e) => handleEditWorkOrder(e, order)}
-                                        className="p-1.5 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors z-10"
-                                        title="Editar Orden"
-                                    >
-                                        <Edit3 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => handleDeleteWorkOrder(e, order.id)}
-                                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
-                                        title="Eliminar Orden"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                    <ChevronRight size={18} className="text-slate-300 group-hover:text-orange-500" />
-                                </div>
-                            </div>
-                        </div>
+                        <WorkOrderListItem
+                            key={order.id}
+                            order={order}
+                            onClick={() => navigate(`/maintenance/ot/${order.id}`)}
+                            onEdit={handleEditWorkOrder}
+                            onDelete={handleDeleteWorkOrder}
+                            getPriorityColor={getPriorityColor}
+                        />
                     ))}
 
                     {/* FAB for Orders */}

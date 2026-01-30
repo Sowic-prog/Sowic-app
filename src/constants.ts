@@ -29,8 +29,8 @@ export const MOCK_ASSETS: Asset[] = [
     tti: 12.5,
     domainNumber: 'AE-123-BC',
     expirations: [
-        { id: 'e1', type: 'Seguro', expirationDate: '2024-12-31', notes: 'Poliza Mercantil Andina' },
-        { id: 'e2', type: 'Certificación', expirationDate: '2024-06-15', notes: 'Certificación de Izaje' }
+      { id: 'e1', type: 'Seguro', expirationDate: '2024-12-31', notes: 'Poliza Mercantil Andina' },
+      { id: 'e2', type: 'Certificación', expirationDate: '2024-06-15', notes: 'Certificación de Izaje' }
     ],
     averageDailyUsage: 8 // Hours per day
   },
@@ -61,9 +61,9 @@ export const MOCK_ASSETS: Asset[] = [
     tti: 15.0,
     domainNumber: 'AF-456-DD',
     expirations: [
-        { id: 'e1', type: 'ITV', expirationDate: '2024-05-20', notes: 'Revisión técnica obligatoria' },
-        { id: 'e2', type: 'Seguro', expirationDate: '2024-11-30', notes: 'Seguro contra todo riesgo' },
-        { id: 'e3', type: 'Cédula Verde', expirationDate: '2025-01-15', notes: 'Vencimiento cédula autorizado' }
+      { id: 'e1', type: 'ITV', expirationDate: '2024-05-20', notes: 'Revisión técnica obligatoria' },
+      { id: 'e2', type: 'Seguro', expirationDate: '2024-11-30', notes: 'Seguro contra todo riesgo' },
+      { id: 'e3', type: 'Cédula Verde', expirationDate: '2025-01-15', notes: 'Vencimiento cédula autorizado' }
     ],
     averageDailyUsage: 120 // KM per day
   },
@@ -86,7 +86,7 @@ export const MOCK_ASSETS: Asset[] = [
     serial: 'CUM-99283-RENT',
     year: 2022,
     dailyRate: 45000,
-    value: 0, 
+    value: 0,
     accountingAccount: '5.02.01.010 - Alquileres de Equipos',
     functionalDescription: 'Provisión de energía eléctrica temporal en obra.',
     complementaryDescription: 'Contrato marco #2023-992. Incluye mantenimiento por proveedor.',
@@ -120,9 +120,9 @@ export const MOCK_ASSETS: Asset[] = [
     usefulLifeRemaining: 40,
     tti: 0,
     regulatoryData: {
-        pat: { lastDate: '2023-12-10', expirationDate: '2024-12-10', value: '3.2 Ohm', status: 'Vigente' },
-        lighting: { lastDate: '2023-06-15', expirationDate: '2024-06-15', avgLux: 450, status: 'Vigente' },
-        ergonomics: { lastDate: '2022-03-01', expirationDate: '2024-03-01', riskLevel: 'Bajo', status: 'Vencido' }
+      pat: { lastDate: '2023-12-10', expirationDate: '2024-12-10', value: '3.2 Ohm', status: 'Vigente' },
+      lighting: { lastDate: '2023-06-15', expirationDate: '2024-06-15', avgLux: 450, status: 'Vigente' },
+      ergonomics: { lastDate: '2022-03-01', expirationDate: '2024-03-01', riskLevel: 'Bajo', status: 'Vencido' }
     }
   }
 ];
@@ -140,41 +140,41 @@ export const MOCK_STAFF: Staff[] = [
 ];
 
 export const MOCK_INVENTORY: InventoryItem[] = [
-  { id: '1', barcodeId: '2001', name: 'Filtro Aceite Motor NH', category: 'Consumibles', type: 'Consumible', quantity: 12, minThreshold: 5, location: 'Pañol Central', unitPrice: 15000, status: 'Operativo' },
-  { id: '2', barcodeId: '3005', name: 'Taladro Percutor Dewalt', category: 'Herramientas', type: 'Serializado', quantity: 1, minThreshold: 0, location: 'Pañol Central', unitPrice: 120000, serialNumber: 'DW-99283-X', status: 'Operativo' },
-  { id: '3', barcodeId: '2005', name: 'Casco Seguridad Amarillo', category: 'Seguridad', type: 'Consumible', quantity: 45, minThreshold: 10, location: 'Pañol Central', unitPrice: 8500, status: 'Operativo' },
+  { id: '1', barcodeId: '2001', name: 'Filtro Aceite Motor NH', category: 'Consumibles', type: 'Consumible', quantity: 12, minThreshold: 5, location: 'Pañol Central', unitPrice: 15000, status: 'Disponible' },
+  { id: '2', barcodeId: '3005', name: 'Taladro Percutor Dewalt', category: 'Herramientas', type: 'Serializado', quantity: 1, minThreshold: 0, location: 'Pañol Central', unitPrice: 120000, serialNumber: 'DW-99283-X', status: 'Disponible' },
+  { id: '3', barcodeId: '2005', name: 'Casco Seguridad Amarillo', category: 'Seguridad', type: 'Consumible', quantity: 45, minThreshold: 10, location: 'Pañol Central', unitPrice: 8500, status: 'Disponible' },
 ];
 
 export const MOCK_PROVIDERS: Provider[] = [
-    { id: '1', companyName: 'Sullair Argentina', contactName: 'Marcos Ventas', serviceType: 'Alquiler de Maquinaria', rating: 5, status: 'Activo' },
-    { id: '2', companyName: 'Mercantil Andina', contactName: 'Soporte Seguros', serviceType: 'Seguros', rating: 4, status: 'Activo' },
-    { id: '3', companyName: 'Ferretería Industrial Norte', contactName: 'Luis', serviceType: 'Insumos', rating: 3, status: 'Activo' },
+  { id: '1', companyName: 'Sullair Argentina', contactName: 'Marcos Ventas', serviceType: 'Alquiler de Maquinaria', rating: 5, status: 'Activo' },
+  { id: '2', companyName: 'Mercantil Andina', contactName: 'Soporte Seguros', serviceType: 'Seguros', rating: 4, status: 'Activo' },
+  { id: '3', companyName: 'Ferretería Industrial Norte', contactName: 'Luis', serviceType: 'Insumos', rating: 3, status: 'Activo' },
 ];
 
 export const MOCK_WORK_ORDERS: WorkOrder[] = [
-  { 
-    id: 'OT-2024-101', 
-    title: 'Service 500hs Retroexcavadora', 
-    assetId: '1', 
-    assetName: 'Retroexcavadora New Holland B90B', 
-    status: WorkOrderStatus.PENDING, 
-    priority: WorkOrderPriority.HIGH, 
-    dateStart: '2024-05-25', 
+  {
+    id: 'OT-2024-101',
+    title: 'Service 500hs Retroexcavadora',
+    assetId: '1',
+    assetName: 'Retroexcavadora New Holland B90B',
+    status: WorkOrderStatus.PENDING,
+    priority: WorkOrderPriority.HIGH,
+    dateStart: '2024-05-25',
     responsible: 'Ana Lopez',
     description: 'Realizar cambio de aceite motor, filtros de combustible y aire. Verificar sistema hidráulico.',
     updates: [
-        { id: 'u1', date: '2024-05-24 10:00', user: 'Ana Lopez', comment: 'OT Creada. Esperando repuestos.', newStatus: WorkOrderStatus.PENDING }
+      { id: 'u1', date: '2024-05-24 10:00', user: 'Ana Lopez', comment: 'OT Creada. Esperando repuestos.', newStatus: WorkOrderStatus.PENDING }
     ],
     expenses: []
   },
-  { 
-    id: 'OT-2024-098', 
-    title: 'Reparación Cubierta Delantera', 
-    assetId: '2', 
-    assetName: 'Toyota Hilux SRX 4x4', 
-    status: WorkOrderStatus.IN_PROGRESS, 
-    priority: WorkOrderPriority.MEDIUM, 
-    dateStart: '2024-05-24', 
+  {
+    id: 'OT-2024-098',
+    title: 'Reparación Cubierta Delantera',
+    assetId: '2',
+    assetName: 'Toyota Hilux SRX 4x4',
+    status: WorkOrderStatus.IN_PROGRESS,
+    priority: WorkOrderPriority.MEDIUM,
+    dateStart: '2024-05-24',
     responsible: 'Carlos Mendez',
     description: 'Pinchadura en cubierta delantera derecha. Enviar a gomería local.',
     updates: [],
@@ -183,47 +183,47 @@ export const MOCK_WORK_ORDERS: WorkOrder[] = [
 ];
 
 export const MOCK_SERVICES: ServiceRequest[] = [
-    { id: 'SR-001', title: 'Falla Aire Acondicionado', category: 'HVAC', priority: 'Media', status: 'Pendiente', location: 'Oficina Técnica', slaDeadline: '48hs', description: 'El equipo no enfría correctamente.' },
-    { id: 'SR-002', title: 'Corte de Energía Sector B', category: 'Eléctrico', priority: 'Crítica', status: 'En Proceso', location: 'Taller Central', slaDeadline: '4hs', description: 'Tablero seccional saltó y no rearma.' }
+  { id: 'SR-001', title: 'Falla Aire Acondicionado', category: 'HVAC', priority: 'Media', status: 'Pendiente', location: 'Oficina Técnica', slaDeadline: '48hs', description: 'El equipo no enfría correctamente.' },
+  { id: 'SR-002', title: 'Corte de Energía Sector B', category: 'Eléctrico', priority: 'Crítica', status: 'En Proceso', location: 'Taller Central', slaDeadline: '4hs', description: 'Tablero seccional saltó y no rearma.' }
 ];
 
 export const MOCK_TRANSFERS: Transfer[] = [
-    { id: 'TR-8821', assetName: 'Retroexcavadora New Holland B90B', fromLocation: 'Pañol Central', toLocation: 'Parque Eólico Chubut', date: '2024-05-10', status: 'Completado', meterReading: 4200 },
-    { id: 'TR-8825', assetName: 'Generador Cummins 110kVA', fromLocation: 'Sullair Argentina', toLocation: 'Obra Córdoba Capital', date: '2024-05-15', status: 'Completado', meterReading: 1240 }
+  { id: 'TR-8821', assetName: 'Retroexcavadora New Holland B90B', fromLocation: 'Pañol Central', toLocation: 'Parque Eólico Chubut', date: '2024-05-10', status: 'Completado', meterReading: 4200 },
+  { id: 'TR-8825', assetName: 'Generador Cummins 110kVA', fromLocation: 'Sullair Argentina', toLocation: 'Obra Córdoba Capital', date: '2024-05-15', status: 'Completado', meterReading: 1240 }
 ];
 
 export const MOCK_ALLOCATIONS: AssetAllocation[] = [
-    { id: 'AL-101', assetId: '1', assetName: 'Retroexcavadora New Holland B90B', projectId: '1', projectName: 'Parque Eólico Chubut', startDate: '2024-05-10', endDate: '2024-08-10', status: 'Activo' },
-    { id: 'AL-102', assetId: '3', assetName: 'Generador Cummins 110kVA', projectId: '2', projectName: 'Torre Central Córdoba', startDate: '2024-05-15', endDate: '2024-09-15', status: 'Activo' }
+  { id: 'AL-101', assetId: '1', assetName: 'Retroexcavadora New Holland B90B', projectId: '1', projectName: 'Parque Eólico Chubut', startDate: '2024-05-10', endDate: '2024-08-10', status: 'Activo' },
+  { id: 'AL-102', assetId: '3', assetName: 'Generador Cummins 110kVA', projectId: '2', projectName: 'Torre Central Córdoba', startDate: '2024-05-15', endDate: '2024-09-15', status: 'Activo' }
 ];
 
 export const MOCK_MAINTENANCE_PLANS: MaintenancePlan[] = [
-    {
-        id: 'MP-001',
-        assetId: '1',
-        assetName: 'Retroexcavadora New Holland B90B',
-        title: 'Plan Anual Preventivo 2024',
-        baseFrequency: 250,
-        baseFrequencyUnit: 'Horas',
-        frequencyTimeValue: 6,
-        frequencyTimeUnit: 'Meses',
-        dailyUsageEstimate: 8,
-        events: [
-            { id: 'evt-1', title: 'Service 250 Horas', estimatedDate: '2024-03-15', status: 'Completado', triggerValue: 250, tasks: [] },
-            { id: 'evt-2', title: 'Service 500 Horas', estimatedDate: '2024-05-20', status: 'Programado', triggerValue: 500, tasks: [{ id: 't1', description: 'Cambio Aceite Motor', durationDays: 1, isCritical: true }] }
-        ],
-        notes: 'Plan estándar del fabricante.'
-    }
+  {
+    id: 'MP-001',
+    assetId: '1',
+    assetName: 'Retroexcavadora New Holland B90B',
+    title: 'Plan Anual Preventivo 2024',
+    baseFrequency: 250,
+    baseFrequencyUnit: 'Horas',
+    frequencyTimeValue: 6,
+    frequencyTimeUnit: 'Meses',
+    dailyUsageEstimate: 8,
+    events: [
+      { id: 'evt-1', title: 'Service 250 Horas', estimatedDate: '2024-03-15', status: 'Completado', triggerValue: 250, tasks: [] },
+      { id: 'evt-2', title: 'Service 500 Horas', estimatedDate: '2024-05-20', status: 'Programado', triggerValue: 500, tasks: [{ id: 't1', description: 'Cambio Aceite Motor', durationDays: 1, isCritical: true }] }
+    ],
+    notes: 'Plan estándar del fabricante.'
+  }
 ];
 
 export const MOCK_CHECKLISTS: Checklist[] = [
-    {
-        id: 'CHK-0042',
-        assetId: '1',
-        assetName: 'Retroexcavadora New Holland B90B',
-        date: '2024-05-18',
-        inspector: 'Juan Pérez',
-        conformity: 92,
-        items: []
-    }
+  {
+    id: 'CHK-0042',
+    assetId: '1',
+    assetName: 'Retroexcavadora New Holland B90B',
+    date: '2024-05-18',
+    inspector: 'Juan Pérez',
+    conformity: 92,
+    items: []
+  }
 ];
