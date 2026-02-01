@@ -853,17 +853,17 @@ const Inventory: React.FC = () => {
     return (
         <div className="p-4 md:p-8 space-y-6 bg-[#F8F9FA] min-h-screen font-sans">
             {/* PRINT HEADER */}
-            <div className="print-header">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold text-lg">SW</div>
+            {/* PRINT HEADER */}
+            <div className="hidden print:block mb-8">
+                <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
                     <div>
-                        <h1 className="font-bold text-lg text-slate-800">SOWIC - REPORTE DE INVENTARIO</h1>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{activeTab === 'consumables' ? 'Stock de Consumibles' : 'Equipos y Herramientas'}</p>
+                        <h1 className="text-3xl font-black uppercase tracking-widest text-slate-900">REPORTE DE INVENTARIO</h1>
+                        <div className="flex items-center gap-4 mt-2">
+                            <span className="text-sm font-bold bg-slate-100 px-3 py-1 rounded text-slate-600 uppercase">{activeTab === 'consumables' ? 'Consumibles' : 'Equipos y Herramientas'}</span>
+                            <span className="text-sm font-bold text-slate-500">{new Date().toLocaleDateString()}</span>
+                        </div>
                     </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Fecha de Emisión</p>
-                    <p className="text-sm font-black text-slate-800">{new Date().toLocaleDateString()}</p>
+                    <div className="w-16 h-16 bg-slate-900 text-white flex items-center justify-center font-bold text-2xl rounded-lg">SW</div>
                 </div>
             </div>
 
@@ -893,14 +893,14 @@ const Inventory: React.FC = () => {
             </div>
 
             {/* PRINT TABLE (Visible only when printing) */}
-            <div className="hidden print:block w-full overflow-hidden border border-slate-200 rounded-xl mt-4">
+            <div className="hidden print:block w-full mt-4">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-slate-50 border-b-2 border-slate-900">
                         <tr>
-                            <th className="p-3 text-[10px] font-bold text-slate-400 uppercase border-b">Artículo</th>
-                            <th className="p-3 text-[10px] font-bold text-slate-400 uppercase border-b">ID / Código</th>
-                            <th className="p-3 text-[10px] font-bold text-slate-400 uppercase border-b">Ubicación / Responsable</th>
-                            <th className="p-3 text-[10px] font-bold text-slate-400 uppercase border-b text-center">Stock / Estado</th>
+                            <th className="p-3 text-xs font-bold text-slate-900 uppercase">Artículo</th>
+                            <th className="p-3 text-xs font-bold text-slate-900 uppercase">ID / Código</th>
+                            <th className="p-3 text-xs font-bold text-slate-900 uppercase">Ubicación / Responsable</th>
+                            <th className="p-3 text-xs font-bold text-slate-900 uppercase text-center">Stock / Estado</th>
                         </tr>
                     </thead>
                     <tbody>

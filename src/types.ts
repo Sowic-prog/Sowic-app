@@ -1,6 +1,6 @@
 
 export enum AssetStatus {
-  OPERATIONAL = 'Disponible',
+  OPERATIONAL = 'Operativo',
   IN_MAINTENANCE = 'En Taller',
   ON_SITE = 'En Obra',
   STAND_BY = 'Stand By',
@@ -140,6 +140,8 @@ export interface WorkOrder {
   title: string;
   assetId: string;
   assetName: string;
+  internalId?: string;
+  location?: string;
   status: WorkOrderStatus;
   priority: WorkOrderPriority;
   dateStart: string;

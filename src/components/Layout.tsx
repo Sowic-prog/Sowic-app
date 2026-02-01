@@ -110,7 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex-1 h-screen overflow-y-auto overflow-x-hidden pb-24 md:pb-0 relative bg-[#F8F9FA]">
+      <main className="flex-1 h-screen overflow-y-auto overflow-x-hidden pb-24 md:pb-0 relative bg-[#F8F9FA] print:h-auto print:overflow-visible print:bg-white print:pb-0">
         {children}
       </main>
 

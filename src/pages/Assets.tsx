@@ -68,7 +68,7 @@ const mapAssetToDB = (asset: Partial<Asset>) => {
         internalId, barcodeId, dailyRate, originYear, usefulLifeRemaining,
         accountingAccount, functionalDescription, complementaryDescription,
         domainNumber, chassisNumber, engineNumber, insuranceProvider,
-        regulatoryData, averageDailyUsage, expirations, incidents,
+        regulatoryData, averageDailyUsage, expirations, incidents, documents,
         ...rest
     } = asset;
 
@@ -415,18 +415,39 @@ const Assets: React.FC = () => {
         // FILTRO DE INFRAESTRUCTURA (MANTENIDO - Updated to new type)
         if (a.type === 'Instalaciones en infraestructuras') return false;
 
-        const term = searchTerm.toLowerCase().trim();
-        const matchesSearch = !term ||
-            (a.name || '').toLowerCase().includes(term) ||
-            (a.internalId || '').toLowerCase().includes(term) ||
-            (a.serial || '').toLowerCase().includes(term) ||
-            (a.barcodeId || '').includes(term);
-
         // Ownership Filter
         if (assetTab === 'owned' && a.ownership !== 'Propio') return false;
         if (assetTab === 'rented' && a.ownership !== 'Alquilado') return false;
 
-        return matchesSearch;
+        const term = searchTerm.toLowerCase().trim();
+        if (!term) return true;
+
+        return (a.name || '').toLowerCase().includes(term) ||
+            (a.internalId || '').toLowerCase().includes(term) ||
+            (a.serial || '').toLowerCase().includes(term) ||
+            (a.barcodeId || '').toLowerCase().includes(term);
+    }).sort((a, b) => {
+        const term = searchTerm.toLowerCase().trim();
+        if (!term) return 0;
+
+        const aBarcode = (a.barcodeId || '').toLowerCase();
+        const bBarcode = (b.barcodeId || '').toLowerCase();
+        const aInternal = (a.internalId || '').toLowerCase();
+        const bInternal = (b.internalId || '').toLowerCase();
+
+        // 1. Exact Barcode Match
+        if (aBarcode === term && bBarcode !== term) return -1;
+        if (bBarcode === term && aBarcode !== term) return 1;
+
+        // 2. Exact Internal ID Match
+        if (aInternal === term && bInternal !== term) return -1;
+        if (bInternal === term && aInternal !== term) return 1;
+
+        // 3. Starts with Barcode
+        if (aBarcode.startsWith(term) && !bBarcode.startsWith(term)) return -1;
+        if (bBarcode.startsWith(term) && !aBarcode.startsWith(term)) return 1;
+
+        return 0;
     });
 
     const getStatusColor = (status: AssetStatus) => {
@@ -1277,13 +1298,16 @@ const Assets: React.FC = () => {
                 )}
 
                 {/* PRINT HEADER */}
-                <div className="print-header">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold text-lg">SW</div>
+                <div className="hidden print:block mb-8">
+                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
                         <div>
-                            <h1 className="font-bold text-lg text-slate-800">Ficha Técnica de Activo</h1>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedAsset.internalId}</p>
+                            <h1 className="text-3xl font-black uppercase tracking-widest text-slate-900">FICHA TÉCNICA DE ACTIVO</h1>
+                            <div className="flex items-center gap-4 mt-2">
+                                <span className="text-sm font-bold bg-slate-100 px-3 py-1 rounded text-slate-600 uppercase">{selectedAsset.internalId}</span>
+                                <span className="text-sm font-bold text-slate-500">{new Date().toLocaleDateString()}</span>
+                            </div>
                         </div>
+                        <div className="w-16 h-16 bg-slate-900 text-white flex items-center justify-center font-bold text-2xl rounded-lg">SW</div>
                     </div>
                 </div>
 
