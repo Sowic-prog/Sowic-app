@@ -6,7 +6,7 @@ interface AuthContextType {
     user: Staff | null;
     login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
-    checkPermission: (path: string) => boolean;
+    checkPermission: (path: string, level?: 'view' | 'edit') => boolean;
     isLoading: boolean;
     updateUserSession: (updatedUser: Staff) => void;
 }
@@ -27,7 +27,7 @@ const DEFAULT_ADMIN: Staff = {
         username: 'Admin',
         password: 'Admin',
         role: 'SuperAdmin',
-        allowedModules: [], // SuperAdmin has implicit access to everything
+        permissions: {}, // SuperAdmin has implicit access to everything
         canManageUsers: true,
     }
 };
@@ -65,9 +65,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 auth: {
                     username: data.username,
                     password: data.password,
-                    role: (data.role as any) || 'User',
-                    allowedModules: [], // SuperAdmin gets full access in checkPermission
-                    canManageUsers: data.role === 'SuperAdmin' || data.role === 'Admin'
+                    role: (data.auth_role as any) || (['SuperAdmin', 'Admin', 'User', 'Viewer'].includes(data.role) ? data.role : 'User'), // Fallback for transition
+                    permissions: data.permissions || {},
+                    canManageUsers: data.auth_role === 'SuperAdmin' || data.auth_role === 'Admin' || data.role === 'SuperAdmin'
                 }
             };
 
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const checkPermission = (path: string): boolean => {
+    const checkPermission = (path: string, level: 'view' | 'edit' = 'view'): boolean => {
         if (!user || !user.auth) return false;
 
         // SuperAdmin has access to everything
@@ -102,16 +102,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Normalize path to remove trailing slashes or sub-routes
         // e.g., /maintenance/ot/123 -> /maintenance
-        // This is a simple check; you might need more robust matching
-
         const rootPath = '/' + path.split('/')[1];
 
         // Always allow dashboard
         if (rootPath === '/' || path === '/') return true;
 
         // Check specific module access
-        // We assume allowedModules stores paths like '/maintenance', '/assets'
-        return user.auth.allowedModules.includes(rootPath) || user.auth.allowedModules.includes(path);
+        const permission = user.auth.permissions[rootPath] || user.auth.permissions[path];
+
+        if (!permission) return false;
+
+        // If 'view' is requested, any permission ('view' or 'edit') is sufficient
+        if (level === 'view') return true;
+
+        // If 'edit' is requested, must have 'edit' permission
+        return permission === 'edit';
     };
 
     return (

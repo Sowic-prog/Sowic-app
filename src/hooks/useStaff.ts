@@ -34,9 +34,9 @@ export const useStaff = () => {
                 auth: (item.username || item.password) ? {
                     username: item.username,
                     password: item.password,
-                    role: ['SuperAdmin', 'Admin', 'User', 'Viewer'].includes(item.role) ? (item.role as any) : 'User',
-                    allowedModules: [], // Not currently persisted in shown DB schema
-                    canManageUsers: ['SuperAdmin', 'Admin'].includes(item.role)
+                    role: item.auth_role as any || (['SuperAdmin', 'Admin', 'User', 'Viewer'].includes(item.role) ? item.role : 'User'),
+                    permissions: item.permissions || {},
+                    canManageUsers: item.auth_role === 'SuperAdmin' || item.auth_role === 'Admin' || item.role === 'SuperAdmin'
                 } : undefined
             }));
 
@@ -53,7 +53,7 @@ export const useStaff = () => {
         try {
             const dbPayload = {
                 name: staff.name,
-                role: staff.role, // Using role as Job Title AND potentially Auth Role
+                role: staff.role, // Job Title
                 status: staff.status,
                 location: staff.location,
                 avatar: staff.avatar,
@@ -65,7 +65,8 @@ export const useStaff = () => {
                 assigned_assets: staff.assignedAssets,
                 username: staff.auth?.username || null,
                 password: staff.auth?.password || null,
-                // we might lose auth.role if it differs from staff.role, but schema limits us
+                auth_role: staff.auth?.role || 'User',
+                permissions: staff.auth?.permissions || {}
             };
 
             const { data: inserted, error } = await supabase
@@ -100,7 +101,8 @@ export const useStaff = () => {
             if (staff.auth) {
                 dbPayload.username = staff.auth.username;
                 dbPayload.password = staff.auth.password;
-                // dbPayload.role = staff.auth.role; // Caveat: overwrites job title
+                dbPayload.auth_role = staff.auth.role;
+                dbPayload.permissions = staff.auth.permissions;
             }
 
             const { error } = await supabase

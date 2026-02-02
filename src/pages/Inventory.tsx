@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { InventoryItem, Staff, Project } from '../types';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const mapInventoryFromDB = (data: any): InventoryItem => ({
     ...data,
@@ -56,7 +57,7 @@ const mapStaffFromDB = (data: any): Staff => ({
 
 type InventoryTab = 'consumables' | 'serialized';
 
-const InventoryListItem = React.memo(({ item, onClick, onUpdateQuantity, getStatusColor }: any) => {
+const InventoryListItem = React.memo(({ item, onClick, onUpdateQuantity, getStatusColor, canEdit }: any) => {
     return (
         <div
             onClick={() => onClick(item)} // OPEN DETAIL VIEW
@@ -93,9 +94,9 @@ const InventoryListItem = React.memo(({ item, onClick, onUpdateQuantity, getStat
 
                     {item.type === 'Consumible' ? (
                         <div className="flex items-center bg-slate-100 rounded-xl p-1 mt-1" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => onUpdateQuantity(item.id, -1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 shadow-sm active:scale-90" aria-label="Disminuir cantidad"><Minus size={14} /></button>
+                            <button onClick={() => canEdit && onUpdateQuantity(item.id, -1)} disabled={!canEdit} className={`w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 shadow-sm active:scale-90 ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} aria-label="Disminuir cantidad"><Minus size={14} /></button>
                             <span className="w-10 text-center font-black text-slate-800 text-sm">{item.quantity}</span>
-                            <button onClick={() => onUpdateQuantity(item.id, 1)} className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-orange-500 shadow-sm active:scale-90" aria-label="Aumentar cantidad"><Plus size={14} /></button>
+                            <button onClick={() => canEdit && onUpdateQuantity(item.id, 1)} disabled={!canEdit} className={`w-8 h-8 bg-white rounded-lg flex items-center justify-center text-orange-500 shadow-sm active:scale-90 ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} aria-label="Aumentar cantidad"><Plus size={14} /></button>
                         </div>
                     ) : (
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-black border uppercase mt-1 ${getStatusColor(item.status)}`}>{item.status}</span>
@@ -107,6 +108,8 @@ const InventoryListItem = React.memo(({ item, onClick, onUpdateQuantity, getStat
 });
 
 const Inventory: React.FC = () => {
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/inventory', 'edit');
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [dbProjects, setDbProjects] = useState<Project[]>([]);
     const [dbStaff, setDbStaff] = useState<Staff[]>([]);
@@ -343,7 +346,9 @@ const Inventory: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                <button onClick={startEditing} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar"><Edit3 size={20} /></button>
+                                {canEdit && (
+                                    <button onClick={startEditing} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar"><Edit3 size={20} /></button>
+                                )}
                                 <button onClick={handlePrint} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200" aria-label="Imprimir"><Printer size={20} /></button>
                             </>
                         )}
@@ -431,10 +436,10 @@ const Inventory: React.FC = () => {
                                         <span className="text-4xl font-black text-slate-800">{selectedItem.quantity}</span>
                                     </div>
                                     <div className="flex gap-3">
-                                        <button onClick={() => updateQuantity(selectedItem.id, -1)} className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors active:scale-95 shadow-sm" aria-label="Disminuir cantidad">
+                                        <button onClick={() => canEdit && updateQuantity(selectedItem.id, -1)} disabled={!canEdit} className={`w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors active:scale-95 shadow-sm ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} aria-label="Disminuir cantidad">
                                             <Minus size={24} />
                                         </button>
-                                        <button onClick={() => updateQuantity(selectedItem.id, 1)} className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-white hover:bg-slate-700 transition-colors active:scale-95 shadow-lg shadow-slate-200" aria-label="Aumentar cantidad">
+                                        <button onClick={() => canEdit && updateQuantity(selectedItem.id, 1)} disabled={!canEdit} className={`w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-white hover:bg-slate-700 transition-colors active:scale-95 shadow-lg shadow-slate-200 ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} aria-label="Aumentar cantidad">
                                             <Plus size={24} />
                                         </button>
                                     </div>
@@ -871,13 +876,15 @@ const Inventory: React.FC = () => {
                 <h1 className="text-2xl font-bold text-slate-800">Inventario</h1>
                 <div className="flex gap-2">
                     <button onClick={handlePrint} className="p-2 bg-white rounded-xl shadow-sm text-slate-600 hover:text-orange-500 transition-colors" aria-label="Imprimir"><Printer size={20} /></button>
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="w-12 h-12 bg-orange-500 rounded-[1.25rem] flex items-center justify-center text-white shadow-lg shadow-orange-200 active:scale-90 transition-transform"
-                        aria-label="Nuevo Item"
-                    >
-                        <Plus size={28} />
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="w-12 h-12 bg-orange-500 rounded-[1.25rem] flex items-center justify-center text-white shadow-lg shadow-orange-200 active:scale-90 transition-transform"
+                            aria-label="Nuevo Item"
+                        >
+                            <Plus size={28} />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -932,6 +939,7 @@ const Inventory: React.FC = () => {
                         onClick={setSelectedItem}
                         onUpdateQuantity={updateQuantity}
                         getStatusColor={getStatusColor}
+                        canEdit={canEdit}
                     />
                 ))}
                 {filteredItems.length === 0 && (

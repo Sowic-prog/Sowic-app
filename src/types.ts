@@ -255,9 +255,9 @@ export interface Staff {
   certifications?: string;
   auth?: {
     username: string;
-    password: string; // En una app real sería hash, aquí string simple para prototipo
+    password: string;
     role: 'SuperAdmin' | 'Admin' | 'User' | 'Viewer';
-    allowedModules: string[]; // Ej: ['/maintenance', '/assets']
+    permissions: Record<string, 'view' | 'edit'>; // Changed from allowedModules
     canManageUsers: boolean;
   };
 }

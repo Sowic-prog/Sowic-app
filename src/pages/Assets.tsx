@@ -173,8 +173,9 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
 });
 
 const Assets: React.FC = () => {
-    const { user } = useAuth();
+    const { user, checkPermission } = useAuth();
     const isSuperAdmin = user?.auth?.role === 'SuperAdmin';
+    const canEdit = checkPermission('/assets', 'edit');
     const location = useLocation();
     const navigate = useNavigate();
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -1326,9 +1327,11 @@ const Assets: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                <button onClick={startEditing} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar">
-                                    <Edit3 size={20} />
-                                </button>
+                                {canEdit && (
+                                    <button onClick={startEditing} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar">
+                                        <Edit3 size={20} />
+                                    </button>
+                                )}
                                 <button onClick={handlePrint} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-colors" aria-label="Imprimir">
                                     <Printer size={20} />
                                 </button>

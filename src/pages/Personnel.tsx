@@ -44,7 +44,7 @@ const Personnel: React.FC = () => {
     authUsername: string;
     authPassword: string;
     authRole: 'SuperAdmin' | 'Admin' | 'User' | 'Viewer';
-    authModules: string[];
+    authPermissions: Record<string, 'view' | 'edit'>;
   }>({
     name: '',
     role: '',
@@ -61,7 +61,7 @@ const Personnel: React.FC = () => {
     authUsername: '',
     authPassword: '',
     authRole: 'User',
-    authModules: [],
+    authPermissions: {},
   });
 
 
@@ -82,7 +82,7 @@ const Personnel: React.FC = () => {
       authUsername: '',
       authPassword: '',
       authRole: 'User',
-      authModules: [],
+      authPermissions: {},
     });
     setIsFormOpen(true);
   };
@@ -105,7 +105,7 @@ const Personnel: React.FC = () => {
       authUsername: staff.auth?.username || '',
       authPassword: staff.auth?.password || '',
       authRole: staff.auth?.role || 'User',
-      authModules: staff.auth?.allowedModules || [],
+      authPermissions: staff.auth?.permissions || {},
     });
     setIsFormOpen(true);
   };
@@ -141,7 +141,7 @@ const Personnel: React.FC = () => {
         username: formData.authUsername,
         password: formData.authPassword,
         role: formData.authRole,
-        allowedModules: formData.authModules,
+        permissions: formData.authPermissions,
         canManageUsers: formData.authRole === 'SuperAdmin',
       } : undefined;
 
@@ -186,14 +186,15 @@ const Personnel: React.FC = () => {
   };
 
   // Toggle Module Selection
-  const toggleModule = (path: string) => {
+  const setModulePermission = (path: string, level: 'none' | 'view' | 'edit') => {
     setFormData(prev => {
-      const current = prev.authModules || [];
-      if (current.includes(path)) {
-        return { ...prev, authModules: current.filter(p => p !== path) };
+      const current = { ...prev.authPermissions };
+      if (level === 'none') {
+        delete current[path];
       } else {
-        return { ...prev, authModules: [...current, path] };
+        current[path] = level;
       }
+      return { ...prev, authPermissions: current };
     });
   };
 
@@ -321,6 +322,7 @@ const Personnel: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                       className="w-full p-4 pl-10 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-bold text-slate-700"
                       disabled={projectsLoading}
+                      aria-label="Ubicación / Obra"
                     >
                       <option value="">Seleccione Ubicación...</option>
                       <option value="Taller Central">Taller Central</option>
@@ -450,24 +452,41 @@ const Personnel: React.FC = () => {
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Módulos Permitidos</label>
-                      <div className="grid grid-cols-1 gap-2">
-                        {DEFAULT_MODULES.map(module => (
-                          <label key={module.path} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/30 border border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors">
-                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${formData.authModules.includes(module.path) ? 'bg-orange-500 border-orange-500' : 'border-slate-500'}`}>
-                              {formData.authModules.includes(module.path) && <Check size={12} className="text-white" />}
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Permisos por Módulo</label>
+                      <div className="space-y-2">
+                        {DEFAULT_MODULES.map(module => {
+                          const currentLevel = formData.authPermissions?.[module.path] || 'none';
+                          return (
+                            <div key={module.path} className="flex items-center justify-between p-3 rounded-xl bg-slate-700/30 border border-slate-700">
+                              <span className="text-sm font-medium text-slate-200">{module.label}</span>
+                              <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-600">
+                                <button
+                                  type="button"
+                                  onClick={() => setModulePermission(module.path, 'none')}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'none' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                  Sin Acceso
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setModulePermission(module.path, 'view')}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'view' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                  Solo Ver
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setModulePermission(module.path, 'edit')}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'edit' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                  Ver y Editar
+                                </button>
+                              </div>
                             </div>
-                            <input
-                              type="checkbox"
-                              className="hidden"
-                              checked={formData.authModules.includes(module.path)}
-                              onChange={() => toggleModule(module.path)}
-                            />
-                            <span className="text-sm font-medium text-slate-200">{module.label}</span>
-                          </label>
-                        ))}
+                          );
+                        })}
                       </div>
-                      <p className="text-[10px] text-slate-400 flex gap-1"><AlertTriangle size={10} /> Los SuperAdmins tienen acceso a todo por defecto.</p>
+                      <p className="text-[10px] text-slate-400 flex gap-1 mt-2 "><AlertTriangle size={10} /> Los SuperAdmins tienen acceso total automáticamente.</p>
                     </div>
                   </div>
                 )}
