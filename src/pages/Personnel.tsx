@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Search, Phone, Mail, MapPin, Plus, Settings2, X, Check,
   UserPlus, ChevronRight, Save, Camera, UserCircle2, Briefcase,
   Edit, Trash2, ArrowLeft, CreditCard, Shield, Key, AlertTriangle, Smartphone, Palette, FileText
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Staff, Project } from '../types';
+import { Staff } from '../types';
+import { useStaff } from '../hooks/useStaff';
+import { useProjects } from '../hooks/useProjects';
 
 interface StatusConfig {
   label: string;
@@ -25,18 +26,10 @@ const DEFAULT_MODULES = [
 ];
 
 const Personnel: React.FC = () => {
-  const location = useLocation();
   const { user: currentUser } = useAuth();
+  const { data: staffList, loading, createStaff, updateStaff, deleteStaff } = useStaff();
+  const { projects: activeProjects, loading: projectsLoading } = useProjects();
 
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-
-  // Using simplified mock projects for the prototype dropdown
-  const [activeProjects] = useState<Project[]>([
-    { id: '1', name: 'Obra Central', internalId: 'OB-001', status: 'Activa', responsible: 'Juan', location: 'CABA', assignedAssets: 0, assignedStaff: 0 },
-    { id: '2', name: 'Planta Norte', internalId: 'OB-002', status: 'Activa', responsible: 'Pedro', location: 'Tigre', assignedAssets: 0, assignedStaff: 0 },
-  ]);
-
-  const [loading, setLoading] = useState(true);
   const [isConfiguringStatuses, setIsConfiguringStatuses] = useState(false);
   const [selectedStaffForStatus, setSelectedStaffForStatus] = useState<Staff | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -71,27 +64,6 @@ const Personnel: React.FC = () => {
     authModules: [],
   });
 
-  // Fetch Staff from LocalStorage
-  useEffect(() => {
-    fetchStaff();
-  }, []);
-
-  const fetchStaff = () => {
-    setLoading(true);
-    try {
-      const stored = localStorage.getItem('sowic_users');
-      if (stored) {
-        setStaffList(JSON.parse(stored));
-      } else {
-        // Fallback or empty
-        setStaffList([]);
-      }
-    } catch (err) {
-      console.error('Error fetching staff locally:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOpenCreate = () => {
     setStaffToEdit(null);
@@ -153,7 +125,7 @@ const Personnel: React.FC = () => {
     }
   };
 
-  const handleSaveStaff = () => {
+  const handleSaveStaff = async () => {
     if (!formData.name || !formData.role) {
       alert("Por favor, completa nombre y cargo.");
       return;
@@ -165,8 +137,6 @@ const Personnel: React.FC = () => {
     }
 
     try {
-      const newStaffId = staffToEdit ? staffToEdit.id : `staff-${Date.now()}`;
-
       const newAuthData = formData.enableAccess ? {
         username: formData.authUsername,
         password: formData.authPassword,
@@ -175,8 +145,7 @@ const Personnel: React.FC = () => {
         canManageUsers: formData.authRole === 'SuperAdmin',
       } : undefined;
 
-      const newStaffData: Staff = {
-        id: newStaffId,
+      const newStaffData: any = {
         name: formData.name || '',
         role: formData.role || '',
         status: formData.status || 'Disponible',
@@ -191,19 +160,14 @@ const Personnel: React.FC = () => {
         auth: newAuthData
       };
 
-      let updatedList = [...staffList];
-
       if (staffToEdit) {
-        updatedList = updatedList.map(s => s.id === staffToEdit.id ? newStaffData : s);
+        await updateStaff(staffToEdit.id, newStaffData);
+        alert("Perfil actualizado.");
       } else {
-        updatedList.push(newStaffData);
+        await createStaff(newStaffData);
+        alert("Nuevo colaborador registrado.");
       }
 
-      // Save to LocalStorage
-      localStorage.setItem('sowic_users', JSON.stringify(updatedList));
-      setStaffList(updatedList);
-
-      alert(staffToEdit ? "Perfil actualizado." : "Nuevo colaborador registrado.");
       setIsFormOpen(false);
 
     } catch (err: any) {
@@ -212,12 +176,13 @@ const Personnel: React.FC = () => {
     }
   };
 
-  const handleDeleteStaff = (staffId: string) => {
+  const handleDeleteStaff = async (staffId: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este colaborador?")) return;
-
-    const updatedList = staffList.filter(s => s.id !== staffId);
-    localStorage.setItem('sowic_users', JSON.stringify(updatedList));
-    setStaffList(updatedList);
+    try {
+      await deleteStaff(staffId);
+    } catch (error: any) {
+      alert("Error al eliminar: " + error.message);
+    }
   };
 
   // Toggle Module Selection
@@ -232,11 +197,13 @@ const Personnel: React.FC = () => {
     });
   };
 
-  const updateStaffStatus = (staffId: string, newStatus: string) => {
-    const updatedList = staffList.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
-    localStorage.setItem('sowic_users', JSON.stringify(updatedList));
-    setStaffList(updatedList);
-    setSelectedStaffForStatus(null);
+  const updateStaffStatus = async (staffId: string, newStatus: string) => {
+    try {
+      await updateStaff(staffId, { status: newStatus });
+      setSelectedStaffForStatus(null);
+    } catch (error: any) {
+      alert("Error al actualizar estado: " + error.message);
+    }
   };
 
   const addCustomStatus = () => {
@@ -345,10 +312,29 @@ const Personnel: React.FC = () => {
                     />
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Ubicación / Obra</label>
+                  <div className="relative">
+                    <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 z-10" />
+                    <select
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className="w-full p-4 pl-10 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-bold text-slate-700"
+                      disabled={projectsLoading}
+                    >
+                      <option value="">Seleccione Ubicación...</option>
+                      <option value="Taller Central">Taller Central</option>
+                      <option value="Oficina Principal">Oficina Principal</option>
+                      <option value="Sin Asignar">Sin Asignar</option>
+                      {activeProjects.map(project => (
+                        <option key={project.id} value={project.name}>{project.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Contact & Professional */}
             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-5">
               <div className="flex items-center gap-2 mb-2">
                 <Briefcase size={18} className="text-orange-500" />
@@ -513,8 +499,8 @@ const Personnel: React.FC = () => {
           >
             <Save size={20} /> {staffToEdit ? 'Actualizar Datos' : 'Registrar Colaborador'}
           </button>
-        </div>
-      </div>
+        </div >
+      </div >
     );
   }
 

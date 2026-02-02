@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 // Helper to map DB snake_case to TS camelCase
 const mapAssetFromDB = (dbAsset: any): Asset => ({
@@ -172,6 +173,8 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
 });
 
 const Assets: React.FC = () => {
+    const { user } = useAuth();
+    const isSuperAdmin = user?.auth?.role === 'SuperAdmin';
     const location = useLocation();
     const navigate = useNavigate();
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -186,7 +189,7 @@ const Assets: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     // Ownership Filter State
-    const [assetTab, setAssetTab] = useState<'all' | 'owned' | 'rented'>('all');
+    const [assetTab, setAssetTab] = useState<'all' | 'owned' | 'rented' | 'leasing'>('all');
 
     // Incident Modal State
     const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -418,6 +421,7 @@ const Assets: React.FC = () => {
         // Ownership Filter
         if (assetTab === 'owned' && a.ownership !== 'Propio') return false;
         if (assetTab === 'rented' && a.ownership !== 'Alquilado') return false;
+        if (assetTab === 'leasing' && a.ownership !== 'Leasing') return false;
 
         const term = searchTerm.toLowerCase().trim();
         if (!term) return true;
@@ -1376,6 +1380,22 @@ const Assets: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo</label>
+                                    <select
+                                        value={editFormData.type}
+                                        onChange={e => setEditFormData({ ...editFormData, type: e.target.value as any })}
+                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800"
+                                        disabled={!isSuperAdmin}
+                                        aria-label="Tipo"
+                                    >
+                                        <option value="Maquinaria">Maquinaria</option>
+                                        <option value="Rodados">Rodados</option>
+                                        <option value="Equipos de Informática">Equipos de Informática</option>
+                                        <option value="Instalaciones en infraestructuras">Instalaciones en infraestructuras</option>
+                                        <option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nombre (Auto)</label>
                                     <input
                                         type="text"
@@ -1392,7 +1412,8 @@ const Assets: React.FC = () => {
                                             type="text"
                                             value={editFormData.internalId}
                                             onChange={e => setEditFormData({ ...editFormData, internalId: e.target.value })}
-                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 uppercase"
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 uppercase ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={!isSuperAdmin}
                                             aria-label="ID Interno"
                                         />
                                     </div>
@@ -1406,6 +1427,86 @@ const Assets: React.FC = () => {
                                         >
                                             {Object.values(AssetStatus).map(s => <option key={s} value={s}>{s}</option>)}
                                         </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Propiedad</label>
+                                        <select
+                                            value={editFormData.ownership}
+                                            onChange={e => setEditFormData({ ...editFormData, ownership: e.target.value as any })}
+                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Propiedad"
+                                        >
+                                            <option value="Propio">Propio</option>
+                                            <option value="Alquilado">Alquilado</option>
+                                            <option value="Leasing">Leasing</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Código de Barras</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.barcodeId}
+                                            onChange={e => setEditFormData({ ...editFormData, barcodeId: e.target.value })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Código de Barras"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Patente / Dominio</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.domainNumber}
+                                            onChange={e => setEditFormData({ ...editFormData, domainNumber: e.target.value })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium uppercase ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Patente"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Serie / VIN</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.serial}
+                                            onChange={e => setEditFormData({ ...editFormData, serial: e.target.value })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium uppercase ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Serie"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Allocation Section (SuperAdmin) */}
+                                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Ubicación</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.location}
+                                            onChange={e => setEditFormData({ ...editFormData, location: e.target.value })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Ubicación"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Responsable</label>
+                                        <div className="relative">
+                                            <select
+                                                value={editFormData.responsible || ''}
+                                                onChange={(e) => setEditFormData({ ...editFormData, responsible: e.target.value })}
+                                                className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 appearance-none ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                                disabled={!isSuperAdmin}
+                                                aria-label="Responsable"
+                                            >
+                                                <option value="">Sin Asignar</option>
+                                                {dbStaff.map(staff => (
+                                                    <option key={staff.id} value={staff.name}>{staff.name}</option>
+                                                ))}
+                                            </select>
+                                            <UserCircle2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1461,6 +1562,28 @@ const Assets: React.FC = () => {
                                             aria-label="TTI Porcentaje"
                                         />
                                     </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tarifa Diaria</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.dailyRate}
+                                            onChange={e => setEditFormData({ ...editFormData, dailyRate: Number(e.target.value) })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Tarifa Diaria"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Vida Útil Restante</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.usefulLifeRemaining}
+                                            onChange={e => setEditFormData({ ...editFormData, usefulLifeRemaining: Number(e.target.value) })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="VUR"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1486,6 +1609,41 @@ const Assets: React.FC = () => {
                                             onChange={e => setEditFormData({ ...editFormData, engineNumber: e.target.value })}
                                             className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold uppercase"
                                             aria-label="Motor"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Año Origen</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.originYear}
+                                            onChange={e => setEditFormData({ ...editFormData, originYear: Number(e.target.value) })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Año Origen"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Horas / KM</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.hours}
+                                            onChange={e => setEditFormData({ ...editFormData, hours: Number(e.target.value) })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Horas"
+                                        />
+                                    </div>
+                                    <div className="col-span-2 space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Proveedor</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.supplier}
+                                            onChange={e => setEditFormData({ ...editFormData, supplier: e.target.value })}
+                                            className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
+                                            disabled={!isSuperAdmin}
+                                            aria-label="Proveedor"
                                         />
                                     </div>
                                 </div>
@@ -2099,6 +2257,7 @@ const Assets: React.FC = () => {
                     <button onClick={() => setAssetTab('all')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${assetTab === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Todos</button>
                     <button onClick={() => setAssetTab('owned')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${assetTab === 'owned' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Propio</button>
                     <button onClick={() => setAssetTab('rented')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${assetTab === 'rented' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Alquilado</button>
+                    <button onClick={() => setAssetTab('leasing')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${assetTab === 'leasing' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Leasing</button>
                 </div>
             </div>
 
