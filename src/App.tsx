@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { InstallPWA } from './components/InstallPWA';
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const Assets = React.lazy(() => import('./pages/Assets'));
 const Infrastructure = React.lazy(() => import('./pages/Infrastructure'));
@@ -32,6 +33,7 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <InstallPWA />
         <React.Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Public Routes */}
