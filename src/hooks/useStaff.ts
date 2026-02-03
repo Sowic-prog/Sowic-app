@@ -60,7 +60,7 @@ export const useStaff = () => {
                 email: staff.email,
                 phone: staff.phone,
                 dni: staff.dni,
-                admission_date: staff.admissionDate,
+                admission_date: staff.admissionDate || null,
                 certifications: staff.certifications,
                 assigned_assets: staff.assignedAssets,
                 username: staff.auth?.username || null,
@@ -84,6 +84,9 @@ export const useStaff = () => {
     };
 
     const updateStaff = async (id: string, staff: Partial<Staff>) => {
+        console.log("updateStaff called with ID:", id); // DEBUG
+        console.log("updateStaff input object:", staff); // DEBUG
+        console.log("updateStaff auth payload:", staff.auth); // DEBUG
         try {
             const dbPayload: any = {};
             if (staff.name !== undefined) dbPayload.name = staff.name;
@@ -94,25 +97,47 @@ export const useStaff = () => {
             if (staff.email !== undefined) dbPayload.email = staff.email;
             if (staff.phone !== undefined) dbPayload.phone = staff.phone;
             if (staff.dni !== undefined) dbPayload.dni = staff.dni;
-            if (staff.admissionDate !== undefined) dbPayload.admission_date = staff.admissionDate;
+            if (staff.admissionDate !== undefined) dbPayload.admission_date = staff.admissionDate || null;
             if (staff.certifications !== undefined) dbPayload.certifications = staff.certifications;
             if (staff.assignedAssets !== undefined) dbPayload.assigned_assets = staff.assignedAssets;
 
-            if (staff.auth) {
+            // Handle Auth Updates
+            if (staff.auth === null) {
+                // Explicitly clear auth if null is passed
+                dbPayload.username = null;
+                dbPayload.password = null;
+                dbPayload.auth_role = 'User'; // Default role
+                dbPayload.permissions = {};
+            } else if (staff.auth) {
+                // Update auth if object is passed
                 dbPayload.username = staff.auth.username;
                 dbPayload.password = staff.auth.password;
                 dbPayload.auth_role = staff.auth.role;
                 dbPayload.permissions = staff.auth.permissions;
             }
 
-            const { error } = await supabase
+            console.log("FINAL DB PAYLOAD:", JSON.stringify(dbPayload, null, 2)); // DEBUG
+
+            const { data: updatedRecord, error } = await supabase
                 .from('staff')
                 .update(dbPayload)
-                .eq('id', id);
+                .eq('id', id)
+                .select(); // Removed .single() to avoid PGRST116
 
             if (error) throw error;
+
+            if (!updatedRecord || updatedRecord.length === 0) {
+                console.error("CRITICAL: Update operation returned 0 rows. Check ID and Permissions.");
+                console.log("Target ID:", id);
+                throw new Error("La actualización no afectó a ningún registro. Verifique permisos o si el usuario existe.");
+            }
+
+            console.log("DB RETURNED RECORD:", updatedRecord[0]); // DEBUG
+
             await fetchStaff();
+            return updatedRecord[0];
         } catch (err: any) {
+            console.error("Error inside updateStaff:", err);
             throw err;
         }
     };

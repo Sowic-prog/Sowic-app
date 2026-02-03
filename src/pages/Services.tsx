@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ServiceRequest, Asset, Project } from '../types';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 type ViewMode = 'list' | 'detail' | 'form';
 
@@ -58,6 +59,8 @@ const mapServiceRequestToDB = (req: Partial<ServiceRequest>) => ({
 });
 
 const Services: React.FC = () => {
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/services', 'edit');
     const navigate = useNavigate();
     const [requests, setRequests] = useState<ServiceRequest[]>([]);
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -250,9 +253,11 @@ const Services: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
                     <button onClick={() => setView(selectedRequest ? 'detail' : 'list')} className="text-slate-600 p-2" aria-label="Volver"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">{selectedRequest ? 'Editar Solicitud' : 'Nueva Solicitud'}</h1>
-                    <button onClick={handleSave} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1">
-                        {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar
-                    </button>
+                    {canEdit && (
+                        <button onClick={handleSave} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1">
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar
+                        </button>
+                    )}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -404,12 +409,16 @@ const Services: React.FC = () => {
                     <button onClick={() => setView('list')} className="text-slate-600 p-2" aria-label="Volver"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">Detalle Solicitud</h1>
                     <div className="flex gap-2">
-                        <button onClick={() => handleOpenEdit(selectedRequest)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar">
-                            <Edit3 size={20} />
-                        </button>
-                        <button onClick={handleDelete} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors" aria-label="Eliminar">
-                            {loading ? <Loader2 size={18} className="animate-spin text-red-500" /> : <Trash2 size={20} />}
-                        </button>
+                        {canEdit && (
+                            <>
+                                <button onClick={() => handleOpenEdit(selectedRequest)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors" aria-label="Editar">
+                                    <Edit3 size={20} />
+                                </button>
+                                <button onClick={handleDelete} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors" aria-label="Eliminar">
+                                    {loading ? <Loader2 size={18} className="animate-spin text-red-500" /> : <Trash2 size={20} />}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -483,7 +492,8 @@ const Services: React.FC = () => {
                                 </p>
                                 <button
                                     onClick={handleGenerateWorkOrder}
-                                    className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
+                                    className={`w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!canEdit}
                                 >
                                     <Wrench size={16} /> Generar Orden de Trabajo
                                 </button>
@@ -519,7 +529,7 @@ const Services: React.FC = () => {
                     </div>
 
                     {/* Resolver Action */}
-                    {selectedRequest.status !== 'Resuelto' && (
+                    {selectedRequest.status !== 'Resuelto' && canEdit && (
                         <button
                             onClick={async () => {
                                 try {
@@ -664,13 +674,15 @@ const Services: React.FC = () => {
                 </div>
             </div>
 
-            <button
-                onClick={handleOpenCreate}
-                className="fixed bottom-24 right-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 active:scale-90 transition-transform z-30"
-                aria-label="Nueva Solicitud"
-            >
-                <Plus size={28} />
-            </button>
+            {canEdit && (
+                <button
+                    onClick={handleOpenCreate}
+                    className="fixed bottom-24 right-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 active:scale-90 transition-transform z-30"
+                    aria-label="Nueva Solicitud"
+                >
+                    <Plus size={28} />
+                </button>
+            )}
         </div>
     );
 };

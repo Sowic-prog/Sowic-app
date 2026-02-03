@@ -10,4 +10,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.log('Supabase Client Initialized with URL:', supabaseUrl);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false // FORCE ANON: We use custom table-based auth, so we don't want Supabase Auth sessions interfering with RLS.
+    }
+});

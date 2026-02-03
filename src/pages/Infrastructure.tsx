@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Asset, AssetStatus } from '../types';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 // --- MAPPERS ---
 const mapInfrastructureFromDB = (db: any): Asset => ({
@@ -41,6 +42,8 @@ const mapInfrastructureToDB = (infra: Partial<Asset>) => {
 
 const Infrastructure: React.FC = () => {
     const navigate = useNavigate();
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/infrastructure', 'edit');
     const [localAssets, setLocalAssets] = useState<Asset[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -354,9 +357,11 @@ const Infrastructure: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                <button onClick={handleStartEdit} className="w-10 h-10 bg-white border border-slate-200 text-slate-600 rounded-full flex items-center justify-center shadow-sm hover:text-orange-500 transition-colors" title="Editar">
-                                    <Edit3 size={20} />
-                                </button>
+                                {canEdit && (
+                                    <button onClick={handleStartEdit} className="w-10 h-10 bg-white border border-slate-200 text-slate-600 rounded-full flex items-center justify-center shadow-sm hover:text-orange-500 transition-colors" title="Editar">
+                                        <Edit3 size={20} />
+                                    </button>
+                                )}
                                 <button onClick={handlePrint} className="w-10 h-10 bg-slate-800 text-white rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform" title="Imprimir">
                                     <Printer size={20} />
                                 </button>
@@ -460,12 +465,14 @@ const Infrastructure: React.FC = () => {
                             </div>
                         </div>
 
-                        <button
-                            onClick={() => handleCreateMeasurementOT('Puesta a Tierra (Res 900/15)', 'Realizar medición de jabalinas, continuidad de masas y verificación de protecciones diferenciales según Protocolo SRT 900/15.')}
-                            className="w-full py-3 bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform no-print"
-                        >
-                            <FileText size={14} /> Generar OT de Medición
-                        </button>
+                        {canEdit && (
+                            <button
+                                onClick={() => handleCreateMeasurementOT('Puesta a Tierra (Res 900/15)', 'Realizar medición de jabalinas, continuidad de masas y verificación de protecciones diferenciales según Protocolo SRT 900/15.')}
+                                className="w-full py-3 bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform no-print"
+                            >
+                                <FileText size={14} /> Generar OT de Medición
+                            </button>
+                        )}
                     </div>
 
                     {/* 2. Res 84/12 Iluminación */}
@@ -496,12 +503,14 @@ const Infrastructure: React.FC = () => {
                             </div>
                         </div>
 
-                        <button
-                            onClick={() => handleCreateMeasurementOT('Iluminación (Res 84/12)', 'Realizar cuadrícula de medición luxométrica en puestos de trabajo y pasillos según Res 84/12.')}
-                            className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors no-print"
-                        >
-                            <FileText size={14} /> Programar Medición
-                        </button>
+                        {canEdit && (
+                            <button
+                                onClick={() => handleCreateMeasurementOT('Iluminación (Res 84/12)', 'Realizar cuadrícula de medición luxométrica en puestos de trabajo y pasillos según Res 84/12.')}
+                                className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors no-print"
+                            >
+                                <FileText size={14} /> Programar Medición
+                            </button>
+                        )}
                     </div>
 
                     {/* 3. Res 886/15 Ergonomía */}
@@ -527,12 +536,14 @@ const Infrastructure: React.FC = () => {
                             <span className="font-black">{reg.ergonomics?.riskLevel || 'Sin Datos'}</span>
                         </div>
 
-                        <button
-                            onClick={() => handleCreateMeasurementOT('Ergonomía (Res 886/15)', 'Realizar Planillas 1 y 2 de identificación de riesgos ergonómicos y evaluación de puestos administrativos.')}
-                            className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors no-print"
-                        >
-                            <FileText size={14} /> Solicitar Estudio
-                        </button>
+                        {canEdit && (
+                            <button
+                                onClick={() => handleCreateMeasurementOT('Ergonomía (Res 886/15)', 'Realizar Planillas 1 y 2 de identificación de riesgos ergonómicos y evaluación de puestos administrativos.')}
+                                className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors no-print"
+                            >
+                                <FileText size={14} /> Solicitar Estudio
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -547,13 +558,15 @@ const Infrastructure: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Infraestructuras</h1>
                     <p className="text-sm text-slate-500">Gestión de inmuebles y controles legales</p>
                 </div>
-                <button
-                    onClick={handleOpenCreate}
-                    className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
-                    title="Agregar Nueva Infraestructura"
-                >
-                    <Plus size={24} />
-                </button>
+                {canEdit && (
+                    <button
+                        onClick={handleOpenCreate}
+                        className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
+                        title="Agregar Nueva Infraestructura"
+                    >
+                        <Plus size={24} />
+                    </button>
+                )}
             </div>
 
             <div className="p-6 space-y-4">

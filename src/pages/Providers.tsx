@@ -10,12 +10,14 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 const Providers: React.FC = () => {
+    const { user: authUser, checkPermission } = useAuth();
+    const canEdit = checkPermission('/providers', 'edit');
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
     const [providerReviews, setProviderReviews] = useState<ProviderReview[]>([]);
-    const { user: authUser } = useAuth();
+
 
     // Review Formulation State
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -229,7 +231,7 @@ const Providers: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
                     <button onClick={() => { setIsCreating(false); resetForm(); }} className="text-slate-600 p-2" title="Volver" aria-label="Volver"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">{isEdit ? 'Detalles de Proveedor' : 'Nuevo Proveedor'}</h1>
-                    <button onClick={handleSave} className="text-orange-500 font-bold text-sm px-2">Guardar</button>
+                    {canEdit && <button onClick={handleSave} className="text-orange-500 font-bold text-sm px-2">Guardar</button>}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -392,13 +394,15 @@ const Providers: React.FC = () => {
 
                     {/* Action Button */}
                     <div className="flex gap-4 mt-4">
-                        <button
-                            onClick={handleSave}
-                            className="flex-1 bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-                        >
-                            <Save size={20} /> {isEdit ? 'Actualizar' : 'Finalizar Registro'}
-                        </button>
-                        {isEdit && (
+                        {canEdit && (
+                            <button
+                                onClick={handleSave}
+                                className="flex-1 bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                            >
+                                <Save size={20} /> {isEdit ? 'Actualizar' : 'Finalizar Registro'}
+                            </button>
+                        )}
+                        {isEdit && canEdit && (
                             <button
                                 onClick={() => setIsReviewModalOpen(true)}
                                 className="bg-orange-500 text-white p-4 rounded-2xl shadow-xl shadow-orange-200 active:scale-95 transition-transform"
@@ -528,14 +532,16 @@ const Providers: React.FC = () => {
                 <div className="flex justify-between items-center mb-6">
                     <h1 className="text-2xl font-bold text-slate-800">Proveedores</h1>
                     <div className="flex gap-2">
-                        <button
-                            onClick={() => { resetForm(); setIsCreating(true); }}
-                            className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-200 active:scale-95 transition-transform"
-                            title="Nuevo Proveedor"
-                            aria-label="Nuevo Proveedor"
-                        >
-                            <Plus size={28} />
-                        </button>
+                        {canEdit && (
+                            <button
+                                onClick={() => { resetForm(); setIsCreating(true); }}
+                                className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-200 active:scale-95 transition-transform"
+                                title="Nuevo Proveedor"
+                                aria-label="Nuevo Proveedor"
+                            >
+                                <Plus size={28} />
+                            </button>
+                        )}
                     </div>
                 </div>
 

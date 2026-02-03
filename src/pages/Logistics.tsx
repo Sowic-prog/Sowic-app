@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import { MOCK_TRANSFERS, MOCK_ASSETS, MOCK_ALLOCATIONS, MOCK_PROJECTS, MOCK_STAFF } from '../constants';
 import { Transfer, Asset, AssetAllocation, ChecklistItem, Project } from '../types';
 
@@ -69,6 +70,8 @@ const UNIFIED_CHECKLIST_ITEMS: ChecklistItem[] = [
 ];
 
 const Logistics: React.FC = () => {
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/logistics', 'edit');
     const [view, setView] = useState<LogisticsView>('menu');
     const [filter, setFilter] = useState<FilterType>('all');
 
@@ -831,9 +834,11 @@ const Logistics: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
                     <button onClick={() => setView('list')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50" aria-label="Volver a la lista"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">Detalle de {formData.type}</h1>
-                    <button onClick={() => handleEditTransfer(formData as EnhancedTransfer)} className="text-orange-500 p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-colors" aria-label="Editar transferencia">
-                        <Edit3 size={20} />
-                    </button>
+                    {canEdit && (
+                        <button onClick={() => handleEditTransfer(formData as EnhancedTransfer)} className="text-orange-500 p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-colors" aria-label="Editar transferencia">
+                            <Edit3 size={20} />
+                        </button>
+                    )}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -940,34 +945,38 @@ const Logistics: React.FC = () => {
                 </div>
 
                 <div className="space-y-5">
-                    <button onClick={() => setView('allocation_form')} className="w-full bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl shadow-slate-200 relative overflow-hidden group active:scale-[0.98] transition-all" aria-label="Asignar Activo a Obra">
-                        <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl group-hover:bg-orange-500/30 transition-colors"></div>
-                        <div className="flex items-center gap-5 relative z-10">
-                            <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
-                                <CalendarDays size={28} className="text-white" />
-                            </div>
-                            <div className="text-left flex-1">
-                                <h2 className="text-lg font-bold">Asignar Activo a Obra</h2>
-                                <p className="text-xs text-white/50 font-medium">Programar fechas y destinos</p>
-                            </div>
-                            <ChevronRight size={20} className="text-white/20 group-hover:text-orange-500 transition-colors" />
-                        </div>
-                    </button>
+                    {canEdit && (
+                        <>
+                            <button onClick={() => setView('allocation_form')} className="w-full bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl shadow-slate-200 relative overflow-hidden group active:scale-[0.98] transition-all" aria-label="Asignar Activo a Obra">
+                                <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl group-hover:bg-orange-500/30 transition-colors"></div>
+                                <div className="flex items-center gap-5 relative z-10">
+                                    <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+                                        <CalendarDays size={28} className="text-white" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <h2 className="text-lg font-bold">Asignar Activo a Obra</h2>
+                                        <p className="text-xs text-white/50 font-medium">Programar fechas y destinos</p>
+                                    </div>
+                                    <ChevronRight size={20} className="text-white/20 group-hover:text-orange-500 transition-colors" />
+                                </div>
+                            </button>
 
-                    <div className="grid grid-cols-2 gap-5">
-                        <button onClick={() => handleOpenForm('Salida')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-orange-200" aria-label="Registrar Salida">
-                            <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
-                                <ArrowUpRight size={28} />
+                            <div className="grid grid-cols-2 gap-5">
+                                <button onClick={() => handleOpenForm('Salida')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-orange-200" aria-label="Registrar Salida">
+                                    <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+                                        <ArrowUpRight size={28} />
+                                    </div>
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Salida</span>
+                                </button>
+                                <button onClick={() => handleOpenForm('Ingreso')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-green-200" aria-label="Registrar Ingreso">
+                                    <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
+                                        <ArrowDownLeft size={28} />
+                                    </div>
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Ingreso</span>
+                                </button>
                             </div>
-                            <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Salida</span>
-                        </button>
-                        <button onClick={() => handleOpenForm('Ingreso')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-green-200" aria-label="Registrar Ingreso">
-                            <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
-                                <ArrowDownLeft size={28} />
-                            </div>
-                            <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Ingreso</span>
-                        </button>
-                    </div>
+                        </>
+                    )}
 
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
                         <button onClick={() => setView('schedule')} className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors" aria-label="Ver Cronograma">
@@ -1000,7 +1009,7 @@ const Logistics: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-10 shadow-sm flex items-center justify-between">
                     <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50" aria-label="Volver al menú principal"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">Cronograma de Afectación</h1>
-                    <button onClick={handleNewAllocation} className="text-orange-500 font-bold text-sm p-2" aria-label="Crear nueva asignación"><Plus size={24} /></button>
+                    {canEdit && <button onClick={handleNewAllocation} className="text-orange-500 font-bold text-sm p-2" aria-label="Crear nueva asignación"><Plus size={24} /></button>}
                 </div>
                 <div className="p-6 space-y-6">
                     <div className="space-y-4">
@@ -1027,9 +1036,11 @@ const Logistics: React.FC = () => {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start">
                                                 <h3 className="font-bold text-slate-800 text-sm truncate">{alloc.assetName}</h3>
-                                                <button onClick={() => handleEditAllocation(alloc)} className="text-slate-400 hover:text-orange-500 p-1 -mt-1 -mr-2" aria-label="Editar asignación">
-                                                    <Edit3 size={16} />
-                                                </button>
+                                                {canEdit && (
+                                                    <button onClick={() => handleEditAllocation(alloc)} className="text-slate-400 hover:text-orange-500 p-1 -mt-1 -mr-2" aria-label="Editar asignación">
+                                                        <Edit3 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-2 mt-2"><div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0"><HardHat size={14} className="text-slate-400" /></div><span className="text-sm font-bold text-slate-600 truncate">{alloc.projectName}</span></div>
                                         </div>

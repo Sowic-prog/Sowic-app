@@ -18,21 +18,26 @@ const DEFAULT_MODULES = [
   { path: '/maintenance', label: 'Taller y Mantenimiento' },
   { path: '/assets', label: 'Gestión de Activos' },
   { path: '/projects', label: 'Obras y Proyectos' },
-  { path: '/personnel', label: 'Personal (Solo Ver)' },
+  { path: '/personnel', label: 'Personal' },
   { path: '/inventory', label: 'Inventario' },
   { path: '/logistics', label: 'Logística' },
+  { path: '/providers', label: 'Proveedores' },
+  { path: '/services', label: 'Solicitudes y Servicios' },
+  { path: '/calendar', label: 'Calendario y Agenda' },
   { path: '/reports', label: 'Reportes' },
   { path: '/infrastructure', label: 'Infraestructura' },
 ];
 
 const Personnel: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, checkPermission } = useAuth();
+  const canEdit = checkPermission('/personnel', 'edit');
   const { data: staffList, loading, createStaff, updateStaff, deleteStaff } = useStaff();
   const { projects: activeProjects, loading: projectsLoading } = useProjects();
 
   const [isConfiguringStatuses, setIsConfiguringStatuses] = useState(false);
   const [selectedStaffForStatus, setSelectedStaffForStatus] = useState<Staff | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedStaffDetailId, setSelectedStaffDetailId] = useState<string | null>(null); // Changed to ID to avoid stale state
   const [staffToEdit, setStaffToEdit] = useState<Staff | null>(null);
   const [newStatusLabel, setNewStatusLabel] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -126,16 +131,15 @@ const Personnel: React.FC = () => {
   };
 
   const handleSaveStaff = async () => {
-    if (!formData.name || !formData.role) {
-      alert("Por favor, completa nombre y cargo.");
-      return;
+    // Validate Basic Info
+    if (!formData.name.trim()) return alert("El nombre es obligatorio");
+    // Validate Auth Info if Access is Enabled
+    if (formData.enableAccess) {
+      if (!formData.authUsername.trim()) return alert("El usuario es obligatorio para el acceso");
+      if (!formData.authPassword.trim()) return alert("La contraseña es obligatoria para el acceso");
     }
 
-    if (formData.enableAccess && (!formData.authUsername || !formData.authPassword)) {
-      alert("Si habilitas el acceso, debes proveer usuario y contraseña.");
-      return;
-    }
-
+    console.log("Saving Staff - Form Data Dump:", JSON.stringify(formData, null, 2)); // DEBUG
     try {
       const newAuthData = formData.enableAccess ? {
         username: formData.authUsername,
@@ -143,7 +147,7 @@ const Personnel: React.FC = () => {
         role: formData.authRole,
         permissions: formData.authPermissions,
         canManageUsers: formData.authRole === 'SuperAdmin',
-      } : undefined;
+      } : null;
 
       const newStaffData: any = {
         name: formData.name || '',
@@ -194,8 +198,29 @@ const Personnel: React.FC = () => {
       } else {
         current[path] = level;
       }
+      console.log("Updated Permissions for " + path + ":", current); // DEBUG
       return { ...prev, authPermissions: current };
     });
+  };
+
+  // Auto-set permissions based on role
+  const handleRoleChange = (newRole: 'SuperAdmin' | 'Admin' | 'User' | 'Viewer') => {
+    let newPermissions = { ...formData.authPermissions };
+
+    if (newRole === 'SuperAdmin') {
+      // SuperAdmin gets all edit
+      DEFAULT_MODULES.forEach(m => {
+        newPermissions[m.path] = 'edit';
+      });
+    } else if (newRole === 'Viewer') {
+      // Viewer gets all view
+      DEFAULT_MODULES.forEach(m => {
+        newPermissions[m.path] = 'view';
+      });
+    }
+    // Admin/User preserve existing or stay manual
+
+    setFormData({ ...formData, authRole: newRole, authPermissions: newPermissions });
   };
 
   const updateStaffStatus = async (staffId: string, newStatus: string) => {
@@ -242,7 +267,7 @@ const Personnel: React.FC = () => {
         <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
           <button onClick={() => setIsFormOpen(false)} className="text-slate-600 p-2" aria-label="Volver"><ArrowLeft size={24} /></button>
           <h1 className="font-bold text-lg text-slate-800">{staffToEdit ? 'Editar Colaborador' : 'Nuevo Colaborador'}</h1>
-          <button onClick={handleSaveStaff} className="text-orange-500 font-bold text-sm px-2">Guardar</button>
+          {canEdit && <button onClick={handleSaveStaff} className="text-orange-500 font-bold text-sm px-2">Guardar</button>}
         </div>
 
         <div className="p-6 space-y-8 max-w-2xl mx-auto">
@@ -440,7 +465,7 @@ const Personnel: React.FC = () => {
                       <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Rol de Acceso</label>
                       <select
                         value={formData.authRole}
-                        onChange={(e) => setFormData({ ...formData, authRole: e.target.value as any })}
+                        onChange={(e) => handleRoleChange(e.target.value as any)}
                         className="w-full p-4 bg-slate-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 text-sm font-bold text-white"
                         aria-label="Rol de acceso al sistema"
                       >
@@ -462,22 +487,25 @@ const Personnel: React.FC = () => {
                               <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-600">
                                 <button
                                   type="button"
+                                  disabled={formData.authRole === 'SuperAdmin' || formData.authRole === 'Viewer'}
                                   onClick={() => setModulePermission(module.path, 'none')}
-                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'none' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'none' && formData.authRole !== 'SuperAdmin' && formData.authRole !== 'Viewer' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white disabled:opacity-30'}`}
                                 >
                                   Sin Acceso
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={formData.authRole === 'SuperAdmin' || formData.authRole === 'Viewer'}
                                   onClick={() => setModulePermission(module.path, 'view')}
-                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'view' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'view' && formData.authRole !== 'SuperAdmin' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white disabled:opacity-30'}`}
                                 >
                                   Solo Ver
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={formData.authRole === 'SuperAdmin' || formData.authRole === 'Viewer'}
                                   onClick={() => setModulePermission(module.path, 'edit')}
-                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'edit' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${currentLevel === 'edit' || formData.authRole === 'SuperAdmin' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-white'} disabled:cursor-not-allowed`}
                                 >
                                   Ver y Editar
                                 </button>
@@ -512,12 +540,14 @@ const Personnel: React.FC = () => {
 
           </div>
 
-          <button
-            onClick={handleSaveStaff}
-            className="w-full bg-slate-800 text-white py-4 rounded-3xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
-          >
-            <Save size={20} /> {staffToEdit ? 'Actualizar Datos' : 'Registrar Colaborador'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={handleSaveStaff}
+              className="w-full bg-slate-800 text-white py-4 rounded-3xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
+              <Save size={20} /> {staffToEdit ? 'Actualizar Datos' : 'Registrar Colaborador'}
+            </button>
+          )}
         </div >
       </div >
     );
@@ -530,20 +560,24 @@ const Personnel: React.FC = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-slate-800">Personal SOWIC</h1>
           <div className="flex gap-2">
-            <button
-              onClick={() => setIsConfiguringStatuses(true)}
-              className="p-2.5 bg-white rounded-xl shadow-sm text-slate-400 hover:text-orange-500 border border-slate-100 transition-colors"
-              aria-label="Configurar Estados"
-            >
-              <Settings2 size={22} />
-            </button>
-            <button
-              onClick={handleOpenCreate}
-              className="p-2.5 bg-orange-500 rounded-xl shadow-lg shadow-orange-200 text-white active:scale-95 transition-transform"
-              aria-label="Registrar Nuevo Colaborador"
-            >
-              <UserPlus size={22} />
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => setIsConfiguringStatuses(true)}
+                  className="p-2.5 bg-white rounded-xl shadow-sm text-slate-400 hover:text-orange-500 border border-slate-100 transition-colors"
+                  aria-label="Configurar Estados"
+                >
+                  <Settings2 size={22} />
+                </button>
+                <button
+                  onClick={handleOpenCreate}
+                  className="p-2.5 bg-orange-500 rounded-xl shadow-lg shadow-orange-200 text-white active:scale-95 transition-transform"
+                  aria-label="Registrar Nuevo Colaborador"
+                >
+                  <UserPlus size={22} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -588,7 +622,7 @@ const Personnel: React.FC = () => {
                 <Shield size={16} className="text-orange-500" />
               </div>
             )}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setSelectedStaffDetailId(staff.id)}>
               <div className="relative shrink-0">
                 <img src={staff.avatar} alt={staff.name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" />
                 <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(staff.status)}`}></span>
@@ -607,22 +641,24 @@ const Personnel: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 mt-4 pt-4 border-t border-slate-50">
-              <button
-                onClick={() => handleOpenEdit(staff)}
-                className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
-                title="Editar Perfil"
-              >
-                <Edit size={18} />
-              </button>
-              <button
-                onClick={() => handleDeleteStaff(staff.id)}
-                className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                title="Eliminar Colaborador"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex gap-3 mt-4 pt-4 border-t border-slate-50">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleOpenEdit(staff); }}
+                  className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                  title="Editar Perfil"
+                >
+                  <Edit size={18} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteStaff(staff.id); }}
+                  className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  title="Eliminar Colaborador"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -736,6 +772,138 @@ const Personnel: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Detail View Modal */}
+      {selectedStaffDetailId && (() => {
+        const selectedStaffDetail = staffList.find(s => s.id === selectedStaffDetailId);
+        if (!selectedStaffDetail) return null;
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+
+              {/* Header Image & Close */}
+              <div className="relative h-48 bg-gradient-to-r from-slate-800 to-slate-900 p-6 flex items-start justify-end rounded-t-[2.5rem] overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <button
+                  onClick={() => setSelectedStaffDetailId(null)}
+                  className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"
+                  aria-label="Cerrar detalle"
+                >
+                  <X size={20} />
+                </button>
+                <div className="absolute -bottom-16 left-8 p-1 bg-white rounded-[2.5rem]">
+                  <img src={selectedStaffDetail.avatar} className="w-32 h-32 rounded-[2.2rem] object-cover" alt={`Avatar de ${selectedStaffDetail.name}`} />
+                </div>
+              </div>
+
+              <div className="pt-20 px-8 pb-8 space-y-8">
+
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">{selectedStaffDetail.name}</h2>
+                  <p className="text-slate-500 font-medium">{selectedStaffDetail.role}</p>
+                  <div className="flex gap-2 mt-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedStaffDetail.status === 'Disponible' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                      {selectedStaffDetail.status}
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1">
+                      <MapPin size={10} /> {selectedStaffDetail.location || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <UserCircle2 size={14} /> Información Personal
+                    </h3>
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase">DNI</label>
+                        <p className="font-bold text-slate-700">{selectedStaffDetail.dni || '-'}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase">Fecha de Ingreso</label>
+                        <p className="font-bold text-slate-700">{selectedStaffDetail.admissionDate || '-'}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase">Contacto</label>
+                        <p className="text-sm text-slate-600 flex items-center gap-2 mt-1"><Mail size={12} /> {selectedStaffDetail.email || '-'}</p>
+                        <p className="text-sm text-slate-600 flex items-center gap-2 mt-1"><Phone size={12} /> {selectedStaffDetail.phone || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Shield size={14} /> Acceso y Permisos
+                    </h3>
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                      {selectedStaffDetail.auth ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <label className="text-[10px] text-slate-400 font-bold uppercase">Usuario</label>
+                              <p className="font-bold text-slate-700">{selectedStaffDetail.auth.username}</p>
+                            </div>
+                            <div className="text-right">
+                              <label className="text-[10px] text-slate-400 font-bold uppercase">Rol</label>
+                              <p className="font-bold text-orange-600">{selectedStaffDetail.auth.role}</p>
+                            </div>
+                          </div>
+                          <div className="pt-3 border-t border-slate-200">
+                            <label className="text-[10px] text-slate-400 font-bold uppercase block mb-2">Permisos Configurados</label>
+                            <div className="space-y-1">
+                              {DEFAULT_MODULES.map((module) => {
+                                const level = selectedStaffDetail.auth?.permissions?.[module.path];
+                                return (
+                                  <div key={module.path} className="flex justify-between text-xs">
+                                    <span className="text-slate-600 font-medium">{module.label}</span>
+                                    {level ? (
+                                      <span className={`px-2 py-0.5 rounded-md font-bold ${level === 'edit' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {level === 'edit' ? 'Editar' : 'Ver'}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-md font-bold bg-slate-100 text-slate-400">
+                                        Sin Acceso
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              {selectedStaffDetail.auth.role === 'SuperAdmin' && (
+                                <p className="text-xs text-orange-600 font-bold mt-2 flex items-center gap-1"><Check size={12} /> Acceso Total (SuperAdmin)</p>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center py-4 text-slate-400 text-sm italic">
+                          Sin acceso al sistema
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedStaffDetail.certifications && (
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <FileText size={14} /> Habilitaciones
+                    </h3>
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 whitespace-pre-wrap">
+                      {selectedStaffDetail.certifications}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 };

@@ -11,7 +11,9 @@ import { GoogleGenAI } from "@google/genai";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MOCK_MAINTENANCE_PLANS } from '../constants';
 import { WorkOrderStatus, WorkOrderPriority, Checklist, ChecklistItem, WorkOrderUpdate, Asset, Staff } from '../types';
+
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 // Helper for Checklists mapping
 const mapChecklistFromDB = (db: any): Checklist => ({
@@ -53,7 +55,7 @@ interface PreventiveTask {
     nextDue: string;
 }
 
-const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPriorityColor }: any) => {
+const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPriorityColor, canEdit }: any) => {
     return (
         <div onClick={() => onClick(order)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden cursor-pointer group hover:border-orange-200 transition-colors optimize-visibility"
         >
@@ -66,20 +68,24 @@ const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPri
             <div className="pt-3 mt-3 border-t border-slate-50 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><CalendarIcon size={14} /> {order.dateStart}</span>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={(e) => onEdit(e, order)}
-                        className="p-1.5 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors z-10"
-                        title="Editar Orden"
-                    >
-                        <Edit3 size={16} />
-                    </button>
-                    <button
-                        onClick={(e) => onDelete(e, order.id)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
-                        title="Eliminar Orden"
-                    >
-                        <Trash2 size={16} />
-                    </button>
+                    {canEdit && (
+                        <>
+                            <button
+                                onClick={(e) => onEdit(e, order)}
+                                className="p-1.5 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors z-10"
+                                title="Editar Orden"
+                            >
+                                <Edit3 size={16} />
+                            </button>
+                            <button
+                                onClick={(e) => onDelete(e, order.id)}
+                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+                                title="Eliminar Orden"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </>
+                    )}
                     <ChevronRight size={18} className="text-slate-300 group-hover:text-orange-500" />
                 </div>
             </div>
@@ -90,6 +96,8 @@ const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPri
 const Maintenance: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/maintenance', 'edit');
     const [activeTab, setActiveTab] = useState<'orders' | 'checklists' | 'predictive' | 'preventive'>('orders');
 
     const [isCreatingChecklist, setIsCreatingChecklist] = useState(false);
@@ -715,7 +723,7 @@ const Maintenance: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
                     <button onClick={() => setIsCreatingOT(false)} className="text-slate-600" aria-label="Volver"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">{otFormData.id ? 'Editar Orden' : 'Nueva Orden de Trabajo'}</h1>
-                    <button onClick={handleSaveOT} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full">{otFormData.id ? 'Guardar Cambios' : 'Generar Orden'}</button>
+                    {canEdit && <button onClick={handleSaveOT} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full">{otFormData.id ? 'Guardar Cambios' : 'Generar Orden'}</button>}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -851,12 +859,14 @@ const Maintenance: React.FC = () => {
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleSaveOT}
-                        className="w-full bg-slate-800 text-white py-4 rounded-3xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                    >
-                        <Save size={20} /> {otFormData.id ? 'Guardar Cambios' : 'Generar Orden'}
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={handleSaveOT}
+                            className="w-full bg-slate-800 text-white py-4 rounded-3xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                        >
+                            <Save size={20} /> {otFormData.id ? 'Guardar Cambios' : 'Generar Orden'}
+                        </button>
+                    )}
                 </div>
             </div>
         )
@@ -872,7 +882,7 @@ const Maintenance: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
                     <button onClick={() => setIsCreatingChecklist(false)} className="text-slate-600" aria-label="Volver"><ChevronLeft size={24} /></button>
                     <h1 className="font-bold text-lg text-slate-800">Nueva Inspección</h1>
-                    <button onClick={handleSaveChecklist} className="text-orange-500 font-bold text-sm">Finalizar</button>
+                    {canEdit && <button onClick={handleSaveChecklist} className="text-orange-500 font-bold text-sm">Finalizar</button>}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -1043,9 +1053,11 @@ const Maintenance: React.FC = () => {
                         </div>
                     )}
 
-                    <button onClick={handleSaveChecklist} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 mt-4">
-                        <Save size={20} /> Guardar Inspección
-                    </button>
+                    {canEdit && (
+                        <button onClick={handleSaveChecklist} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-xl shadow-slate-200 flex items-center justify-center gap-2 mt-4">
+                            <Save size={20} /> Guardar Inspección
+                        </button>
+                    )}
 
                     {/* Hidden File Input */}
                     <input
@@ -1188,17 +1200,20 @@ const Maintenance: React.FC = () => {
                             onEdit={handleEditWorkOrder}
                             onDelete={handleDeleteWorkOrder}
                             getPriorityColor={getPriorityColor}
+                            canEdit={canEdit}
                         />
                     ))}
 
                     {/* FAB for Orders */}
-                    <button
-                        onClick={() => setIsCreatingOT(true)}
-                        className="fixed bottom-24 right-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 z-30 active:scale-90 transition-transform"
-                        aria-label="Crear Nueva Orden de Trabajo"
-                    >
-                        <Plus size={28} />
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={() => setIsCreatingOT(true)}
+                            className="fixed bottom-24 right-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 z-30 active:scale-90 transition-transform"
+                            aria-label="Crear Nueva Orden de Trabajo"
+                        >
+                            <Plus size={28} />
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -1220,13 +1235,15 @@ const Maintenance: React.FC = () => {
                     ))}
 
                     {/* FAB for Checklists */}
-                    <button
-                        onClick={() => setIsCreatingChecklist(true)}
-                        className="fixed bottom-24 right-6 w-14 h-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-emerald-200 z-30 active:scale-90 transition-transform"
-                        aria-label="Crear Nuevo Checklist"
-                    >
-                        <ClipboardCheck size={26} />
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={() => setIsCreatingChecklist(true)}
+                            className="fixed bottom-24 right-6 w-14 h-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-emerald-200 z-30 active:scale-90 transition-transform"
+                            aria-label="Crear Nuevo Checklist"
+                        >
+                            <ClipboardCheck size={26} />
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -1254,12 +1271,16 @@ const Maintenance: React.FC = () => {
                                         <h4 className="font-bold text-slate-800 text-sm leading-tight">{task.assetName}</h4>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleEditPreventive(task)} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors" aria-label="Editar Tarea Preventiva">
-                                            <Edit3 size={16} />
-                                        </button>
-                                        <button onClick={() => handleDeletePreventive(task.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label="Eliminar Tarea Preventiva">
-                                            <Trash2 size={16} />
-                                        </button>
+                                        {canEdit && (
+                                            <>
+                                                <button onClick={() => handleEditPreventive(task)} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors" aria-label="Editar Tarea Preventiva">
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                <button onClick={() => handleDeletePreventive(task.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label="Eliminar Tarea Preventiva">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1284,13 +1305,15 @@ const Maintenance: React.FC = () => {
                     </div>
 
                     {/* FAB for Preventive */}
-                    <button
-                        onClick={() => { setIsPreventiveModalOpen(true); setNewPreventive({ assetId: '', task: '', date: new Date().toISOString().split('T')[0], time: '09:00', frequency: 'Mensual' }); }}
-                        className="fixed bottom-24 right-6 w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-purple-200 z-30 active:scale-90 transition-transform"
-                        aria-label="Programar Nueva Tarea Preventiva"
-                    >
-                        <Plus size={28} />
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={() => { setIsPreventiveModalOpen(true); setNewPreventive({ assetId: '', task: '', date: new Date().toISOString().split('T')[0], time: '09:00', frequency: 'Mensual' }); }}
+                            className="fixed bottom-24 right-6 w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-purple-200 z-30 active:scale-90 transition-transform"
+                            aria-label="Programar Nueva Tarea Preventiva"
+                        >
+                            <Plus size={28} />
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -1361,9 +1384,11 @@ const Maintenance: React.FC = () => {
                                             </span>
                                         </div>
                                     </div>
-                                    <button className="bg-slate-800 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform" aria-label="Aceptar Sugerencia Predictiva">
-                                        <Plus size={18} />
-                                    </button>
+                                    {canEdit && (
+                                        <button className="bg-slate-800 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform" aria-label="Aceptar Sugerencia Predictiva">
+                                            <Plus size={18} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

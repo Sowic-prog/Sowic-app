@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { MOCK_PROJECTS, MOCK_ASSETS, MOCK_STAFF, MOCK_INVENTORY } from '../constants';
 import { Project, Asset, Staff, InventoryItem } from '../types';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const mapStaffFromDB = (data: any): Staff => ({
     id: data.id,
@@ -76,6 +77,8 @@ const mapProjectToDB = (project: Partial<Project>) => ({
 
 const Projects: React.FC = () => {
     const location = useLocation();
+    const { checkPermission } = useAuth();
+    const canEdit = checkPermission('/projects', 'edit');
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
@@ -459,9 +462,11 @@ const Projects: React.FC = () => {
                         <ChevronLeft size={24} />
                     </button>
                     <h1 className="font-bold text-lg text-slate-800">Detalle de Obra</h1>
-                    <button onClick={handleEditProject} className="text-slate-400 p-2 -mr-2 rounded-full hover:bg-slate-50" aria-label="Editar">
-                        <Pencil size={20} />
-                    </button>
+                    {canEdit && (
+                        <button onClick={handleEditProject} className="text-slate-400 p-2 -mr-2 rounded-full hover:bg-slate-50" aria-label="Editar">
+                            <Pencil size={20} />
+                        </button>
+                    )}
                 </div>
 
                 <div className="p-6 space-y-8">
@@ -636,12 +641,14 @@ const Projects: React.FC = () => {
 
                 {/* Close Project Action */}
                 {!isClosed ? (
-                    <button
-                        onClick={handleCloseProject}
-                        className="w-full bg-red-50 text-red-600 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-sm border border-red-100 flex items-center justify-center gap-2 mt-8 hover:bg-red-100 transition-colors active:scale-[0.98]"
-                    >
-                        <Archive size={18} /> Marcar Obra como Cerrada
-                    </button>
+                    canEdit && (
+                        <button
+                            onClick={handleCloseProject}
+                            className="w-full bg-red-50 text-red-600 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-sm border border-red-100 flex items-center justify-center gap-2 mt-8 hover:bg-red-100 transition-colors active:scale-[0.98]"
+                        >
+                            <Archive size={18} /> Marcar Obra como Cerrada
+                        </button>
+                    )
                 ) : (
                     <div className="bg-slate-100 text-slate-500 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.1em] border border-slate-200 flex items-center justify-center gap-2 mt-8 opacity-70">
                         <CheckCircle2 size={18} /> Proyecto Finalizado y Archivado
@@ -696,15 +703,17 @@ const Projects: React.FC = () => {
                 ))}
 
                 {/* Add New Project Card */}
-                <div
-                    onClick={() => setIsCreating(true)}
-                    className="border-2 border-dashed border-slate-300 rounded-3xl flex flex-col items-center justify-center p-8 text-slate-400 hover:border-orange-400 hover:text-orange-500 hover:bg-orange-50 transition-all cursor-pointer min-h-[220px]"
-                >
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                        <Plus size={24} />
+                {canEdit && (
+                    <div
+                        onClick={() => setIsCreating(true)}
+                        className="border-2 border-dashed border-slate-300 rounded-3xl flex flex-col items-center justify-center p-8 text-slate-400 hover:border-orange-400 hover:text-orange-500 hover:bg-orange-50 transition-all cursor-pointer min-h-[220px]"
+                    >
+                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+                            <Plus size={24} />
+                        </div>
+                        <span className="font-bold text-sm uppercase tracking-widest">Nueva Obra</span>
                     </div>
-                    <span className="font-bold text-sm uppercase tracking-widest">Nueva Obra</span>
-                </div>
+                )}
             </div>
         </div>
     );
