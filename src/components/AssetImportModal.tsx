@@ -149,6 +149,19 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                     functional_description: functionalDesc,
                 };
 
+                // Helper to safely parse numbers
+                const parseNumber = (val: any): number | null => {
+                    if (val === null || val === undefined || val === '') return null;
+                    if (typeof val === 'number') return val;
+                    const parsed = Number(val);
+                    return isNaN(parsed) ? null : parsed;
+                };
+
+                const parseIntSafe = (val: any): number | null => {
+                    const num = parseNumber(val);
+                    return num === null ? null : Math.round(num);
+                };
+
                 // Specific mappings
                 if (assetType === 'Maquinaria') {
                     newAsset = {
@@ -156,15 +169,15 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         brand: row['Marca'] || row['brand'],
                         model: row['Modelo'] || row['model'],
                         serial: row['Serie'] || row['serial'],
-                        year: row['Año'] || row['year'],
-                        hours: row['Horas'] || 0,
+                        year: parseIntSafe(row['Año'] || row['year']),
+                        hours: parseNumber(row['Horas'] || 0),
                         location: row['Ubicación'] || row['location'],
                         ownership: row['Propiedad'] || row['ownership'] || 'Propio',
-                        value: row['Valor'] || row['value'] || 0,
-                        tti: row['TTI'] || row['tti'] || 0,
+                        value: parseNumber(row['Valor'] || row['value'] || 0),
+                        tti: parseNumber(row['TTI'] || row['tti'] || 0),
                         accounting_account: row['Cuenta Contable'] || row['accounting_account'],
-                        origin_year: row['Año'] || row['year'],
-                        useful_life_remaining: row['VUR'] || row['useful_life_remaining'] || 0,
+                        origin_year: parseIntSafe(row['Año'] || row['year']),
+                        useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
                     };
                 } else if (assetType === 'Rodados') {
                     newAsset = {
@@ -172,17 +185,17 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         brand: row['Marca'] || row['brand'],
                         model: row['Modelo'] || row['model'],
                         domain_number: row['Dominio'] || row['domain_number'],
-                        year: row['Año'] || row['year'],
-                        origin_year: row['Año'] || row['year'], // Map to origin_year as well
+                        year: parseIntSafe(row['Año'] || row['year']),
+                        origin_year: parseIntSafe(row['Año'] || row['year']), // Map to origin_year as well
                         location: row['Ubicación'] || row['location'],
                         ownership: row['Propiedad'] || row['ownership'] || 'Propio',
                         engine_number: row['Motor'] || row['engine_number'],
                         chassis_number: row['Chasis'] || row['chassis_number'],
-                        hours: row['Horas'] || row['hours'] || 0,
-                        value: row['Valor'] || row['value'] || 0,
-                        tti: row['TTI'] || row['tti'] || 0,
+                        hours: parseNumber(row['Horas'] || row['hours'] || 0),
+                        value: parseNumber(row['Valor'] || row['value'] || 0),
+                        tti: parseNumber(row['TTI'] || row['tti'] || 0),
                         accounting_account: row['Cuenta Contable'] || row['accounting_account'],
-                        useful_life_remaining: row['VUR'] || row['useful_life_remaining'] || 0,
+                        useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
                     };
                 } else if (assetType === 'Equipos de Informática') {
                     newAsset = {

@@ -161,13 +161,21 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
         >
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(asset.status)}`}></div>
 
-            <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100">
+            <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100 relative">
                 <img src={asset.image} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+                {asset.responsible && (
+                    <div className="absolute bottom-0 right-0 left-0 bg-black/50 backdrop-blur-[2px] p-1 text-center">
+                        <span className="text-[8px] text-white font-bold truncate block">{asset.responsible}</span>
+                    </div>
+                )}
             </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                        {asset.barcodeId && <span className="text-[9px] font-bold text-slate-500 font-mono">{asset.barcodeId}</span>}
+                    </div>
                     {asset.ownership === 'Alquilado' && (
                         <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">RENT</span>
                     )}
@@ -175,7 +183,11 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
 
                 <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
 
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                        <MapPin size={10} className="text-orange-500" />
+                        <span className="truncate max-w-[100px]">{asset.location}</span>
+                    </div>
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
                         <Activity size={12} className="text-orange-500" />
                         {(asset.hours || 0).toLocaleString()} {asset.type === 'Rodados' ? 'km' : 'hs'}
@@ -322,17 +334,45 @@ const Vehicles: React.FC = () => {
     }, []);
 
     const fetchAssets = async () => {
+        setLoading(true);
         try {
-            const { data, error } = await supabase
+            // 1. Fetch Assets
+            const { data: assetsData, error: assetsError } = await supabase
                 .from('vehicles') // Changed from 'assets'
                 .select('*')
                 // .eq('type', 'Rodados') // Removed
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (assetsError) throw assetsError;
 
-            if (data) {
-                const mappedAssets = data.map(mapAssetFromDB);
+            // 2. Fetch Active Allocations
+            const today = new Date().toISOString().split('T')[0];
+            const { data: allocationsData, error: allocationsError } = await supabase
+                .from('asset_allocations')
+                .select('*, projects(name)')
+                .lte('start_date', today)
+                .gte('end_date', today)
+                .eq('status', 'Activo');
+
+            if (allocationsError) {
+                console.error('Error fetching allocations:', allocationsError);
+            }
+
+            if (assetsData) {
+                const mappedAssets = assetsData.map(dbAsset => {
+                    const baseAsset = mapAssetFromDB(dbAsset);
+
+                    // Find active allocation
+                    const allocation = allocationsData?.find(a => a.asset_id === baseAsset.id);
+
+                    if (allocation) {
+                        return {
+                            ...baseAsset,
+                            location: allocation.projects?.name || baseAsset.location,
+                        };
+                    }
+                    return baseAsset;
+                });
                 setAssets(mappedAssets);
             }
         } catch (err: any) {

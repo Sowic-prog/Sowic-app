@@ -13,14 +13,23 @@ import { useAuth } from '../context/AuthContext';
 // --- MAPPERS ---
 const mapInfrastructureFromDB = (db: any): Asset => ({
     ...db,
-    internalId: db.internal_id,
-    barcodeId: db.barcode_id,
-    dailyRate: db.daily_rate,
+    id: db.id,
+    internalId: db.internal_id || '',
+    barcodeId: db.barcode_id || '',
+    name: db.name || '',
+    description: db.description || '',
+    location: db.location || '',
+    status: db.status || 'Operativo',
+    image: db.image || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400',
+    ownership: db.ownership || 'Propio',
+    dailyRate: db.daily_rate || 0,
     regulatoryData: db.regulatory_data || undefined,
     // Ensure all required Asset fields are present even if not in DB
     type: 'Instalaciones en infraestructuras',
     hours: 0,
     averageDailyUsage: 0,
+    functionalDescription: db.functional_description || '',
+    complementaryDescription: db.complementary_description || '',
 });
 
 const mapInfrastructureToDB = (infra: Partial<Asset>) => {
@@ -38,6 +47,8 @@ const mapInfrastructureToDB = (infra: Partial<Asset>) => {
         barcode_id: barcodeId,
         daily_rate: dailyRate,
         regulatory_data: regulatoryData,
+        functional_description: infra.functionalDescription,
+        complementary_description: infra.complementaryDescription,
     };
 };
 

@@ -166,103 +166,143 @@ const Logistics: React.FC = () => {
         assignedStaff: data.assigned_staff_count || 0,
     });
 
-    const fetchAssets = async () => {
+    const loadData = async () => {
         try {
-            console.log("Fetching Assets from Supabase...");
-            const { data, error } = await supabase.from('assets').select('*');
-            if (error) {
-                console.error("Error fetching assets:", error);
-            } else {
-                console.log("Assets fetched:", data?.length);
-                if (data) setDbAssets(data.map(mapAssetFromDB));
-            }
-        } catch (e) {
-            console.error("Critical error fetching assets:", e);
-        }
-    };
+            console.log("Loading Logistics Data...");
 
-    const fetchProjects = async () => {
-        try {
-            console.log("Fetching Projects from Supabase...");
-            const { data, error } = await supabase.from('projects').select('*');
-            if (error) {
-                console.error("Error fetching projects:", error);
-            } else {
-                console.log("Projects fetched:", data?.length);
-                if (data) setDbProjects(data.map(mapProjectFromDB));
-            }
-        } catch (e) { console.error(e) }
-    };
+            // 1. Fetch Staff
+            const { data: staffData } = await supabase.from('staff').select('*');
+            if (staffData) setDbStaff(staffData);
 
-    const fetchTransfers = async () => {
-        try {
-            const { data, error } = await supabase
+            // 2. Fetch Projects
+            const { data: projectsData } = await supabase.from('projects').select('*');
+            let mappedProjects: Project[] = [];
+            if (projectsData) {
+                mappedProjects = projectsData.map(mapProjectFromDB);
+                setDbProjects(mappedProjects);
+            }
+
+            // 3. Fetch All Assets (Split Tables)
+            const [
+                { data: vehiclesData },
+                { data: machineryData },
+                { data: itData },
+                { data: furnitureData },
+                { data: infraData }
+            ] = await Promise.all([
+                supabase.from('vehicles').select('*'),
+                supabase.from('machinery').select('*'),
+                supabase.from('it_equipment').select('*'),
+                supabase.from('mobiliario').select('*'),
+                supabase.from('infrastructures').select('*')
+            ]);
+
+            const allAssets: Asset[] = [
+                ...(vehiclesData || []).map((a: any) => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
+                ...(machineryData || []).map((a: any) => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
+                ...(itData || []).map((a: any) => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
+                ...(furnitureData || []).map((a: any) => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
+                ...(infraData || []).map((db: any) => ({
+                    ...db,
+                    id: db.id,
+                    internalId: db.internal_id,
+                    barcodeId: db.barcode_id,
+                    name: db.name,
+                    description: db.description,
+                    location: db.location,
+                    status: db.status,
+                    image: db.image,
+                    ownership: db.ownership,
+                    dailyRate: db.daily_rate,
+                    regulatoryData: db.regulatory_data || undefined,
+                    type: 'Instalaciones en infraestructuras' as const,
+                    hours: 0,
+                    averageDailyUsage: 0,
+                    category: 'Inmueble/Infraestructura',
+                    functionalDescription: db.functional_description,
+                    complementaryDescription: db.complementary_description,
+                    expirations: [],
+                    incidents: []
+                } as Asset))
+            ];
+            setDbAssets(allAssets);
+
+            // 4. Fetch Transfers (Raw)
+            const { data: transfersData, error: transfersError } = await supabase
                 .from('asset_transfers')
                 .select(`
                     *,
-                    assets (name),
                     staff (name)
                 `)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (transfersError) console.error("Error fetching transfers:", transfersError);
 
-            if (data) {
-                const mappedTransfers: EnhancedTransfer[] = data.map((t: any) => ({
-                    id: t.id,
-                    assetName: t.assets?.name || 'Desconocido',
-                    fromLocation: t.from_location,
-                    toLocation: t.to_location,
-                    date: t.transfer_date,
-                    status: t.status,
-                    meterReading: t.meter_reading,
-                    type: t.type,
-                    checklist: t.checklist || [],
-                    photos: t.photos || [],
-                    notes: t.notes,
-                    responsibleId: t.responsible_id,
-                    conformity: t.conformity || 100,
-                    aiAnalysis: t.ai_analysis
-                }));
+            if (transfersData) {
+                const mappedTransfers: EnhancedTransfer[] = transfersData.map((t: any) => {
+                    const asset = allAssets.find(a => a.id === t.asset_id);
+                    return {
+                        id: t.id,
+                        assetName: asset?.name || 'Desconocido',
+                        fromLocation: t.from_location,
+                        toLocation: t.to_location,
+                        date: t.transfer_date,
+                        status: t.status,
+                        meterReading: t.meter_reading,
+                        type: t.type,
+                        checklist: t.checklist || [],
+                        photos: t.photos || [],
+                        notes: t.notes,
+                        responsibleId: t.responsible_id,
+                        conformity: t.conformity || 100,
+                        aiAnalysis: t.ai_analysis
+                    };
+                });
                 setTransfers(mappedTransfers);
             }
 
-            // Fetch Allocations
+            // 5. Fetch Allocations (Raw)
             const { data: allocData, error: allocError } = await supabase
                 .from('asset_allocations')
                 .select(`
                     *,
-                    assets (name),
                     projects (name)
                 `)
                 .order('start_date', { ascending: true });
 
-            if (allocError) throw allocError;
+            if (allocError) console.error("Error fetching allocations:", allocError);
 
             if (allocData) {
-                const mappedAllocations: AssetAllocation[] = allocData.map((a: any) => ({
-                    id: a.id,
-                    assetId: a.asset_id,
-                    assetName: a.assets?.name || 'Desconocido',
-                    projectId: a.project_id,
-                    projectName: a.projects?.name || 'Desconocido',
-                    startDate: a.start_date,
-                    endDate: a.end_date,
-                    status: a.status
-                }));
+                const mappedAllocations: AssetAllocation[] = allocData.map((a: any) => {
+                    const asset = allAssets.find(asst => asst.id === a.asset_id);
+                    return {
+                        id: a.id,
+                        assetId: a.asset_id,
+                        assetName: asset?.name || 'Desconocido',
+                        projectId: a.project_id,
+                        projectName: a.projects?.name || 'Desconocido',
+                        startDate: a.start_date,
+                        endDate: a.end_date,
+                        status: a.status
+                    };
+                });
                 setAllocations(mappedAllocations);
             }
 
         } catch (e) {
-            console.error("Error fetching logistics data:", e);
+            console.error("Critical error loading logistics data:", e);
         }
     };
 
     useEffect(() => {
-        fetchTransfers();
-        fetchAssets();
-        fetchProjects();
+        loadData();
     }, []);
+
+    // Also expose refresh function keeping the old name if used elsewhere, 
+    // or just rely on loadData.
+    // The previous code used fetchTransfers() to refresh after save.
+    // We'll map fetchTransfers to loadData for compatibility with handleSaveTransfer
+    const fetchTransfers = loadData; // Alias for refresh
 
     // Helpers
     // For single selection display (if only 1 selected) - mostly for header preview

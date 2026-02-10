@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-    Search, Plus, Filter, MoreVertical, MapPin, Calendar,
+    Search, Plus, Filter, MoreVertical, MapPin, Calendar, Activity,
     FileText, AlertTriangle, ShieldCheck, Banknote, History,
     ChevronLeft, ChevronRight, X, Save, Trash2, Edit3,
     Tractor, Ruler, Wrench, Fuel, Truck,
@@ -110,34 +110,52 @@ const BarcodeView = ({ id }: { id?: string }) => {
     );
 };
 
-const AssetListItem = ({ asset, onClick, getStatusColor }: { asset: Asset, onClick: (a: Asset) => void, getStatusColor: (s: string) => string }) => {
+const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: Asset, onClick: (asset: Asset) => void, getStatusColor: (status: AssetStatus) => string }) => {
     return (
-        <div onClick={() => onClick(asset)} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden relative shrink-0">
-                <img src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Tractor size={20} className="text-white drop-shadow-md" />
-                </div>
+        <div
+            onClick={() => onClick(asset)}
+            className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform relative overflow-hidden group optimize-visibility"
+        >
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(asset.status)}`}></div>
+
+            <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100 relative">
+                <img src={asset.image} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+                {asset.responsible && (
+                    <div className="absolute bottom-0 right-0 left-0 bg-black/50 backdrop-blur-[2px] p-1 text-center">
+                        <span className="text-[8px] text-white font-bold truncate block">{asset.responsible}</span>
+                    </div>
+                )}
             </div>
+
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-bold text-slate-800 text-sm truncate pr-2">{asset.name}</h3>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${getStatusColor(asset.status)} whitespace-nowrap`}>
-                        {asset.status}
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                        {asset.barcodeId && <span className="text-[9px] font-bold text-slate-500 font-mono">{asset.barcodeId}</span>}
+                    </div>
+                    {asset.ownership === 'Alquilado' && (
+                        <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">RENT</span>
+                    )}
                 </div>
-                <p className="text-xs text-slate-500 truncate mb-2">{asset.brand} {asset.model} • {asset.internalId}</p>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-slate-400">
-                        <MapPin size={12} />
-                        <span className="text-[10px] truncate max-w-[80px]">{asset.location}</span>
+
+                <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
+
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                        <MapPin size={10} className="text-orange-500" />
+                        <span className="truncate max-w-[100px]">{asset.location}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
+                        <Activity size={12} className="text-orange-500" />
+                        {(asset.hours || 0).toLocaleString()} hs
                     </div>
                 </div>
             </div>
-            <ChevronRight size={18} className="text-slate-300" />
+
+            <ChevronRight size={20} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
         </div>
     );
-};
+});
 
 const Machinery = () => {
     const navigate = useNavigate();
@@ -257,14 +275,45 @@ const Machinery = () => {
     const fetchAssets = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            // 1. Fetch Assets
+            const { data: assetsData, error: assetsError } = await supabase
                 .from('machinery') // Changed from 'assets'
                 .select('*');
 
-            if (error) throw error;
-            const mapped = data.map(mapAssetFromDB);
-            setAssets(mapped);
-            setFilteredAssets(mapped);
+            if (assetsError) throw assetsError;
+
+            // 2. Fetch Active Allocations
+            const today = new Date().toISOString().split('T')[0];
+            const { data: allocationsData, error: allocationsError } = await supabase
+                .from('asset_allocations')
+                .select('*, projects(name)')
+                .lte('start_date', today)
+                .gte('end_date', today)
+                .eq('status', 'Activo');
+
+            if (allocationsError) {
+                console.error('Error fetching allocations:', allocationsError);
+            }
+
+            if (assetsData) {
+                const mappedAssets = assetsData.map(dbAsset => {
+                    const baseAsset = mapAssetFromDB(dbAsset);
+
+                    // Find active allocation
+                    const allocation = allocationsData?.find(a => a.asset_id === baseAsset.id);
+
+                    if (allocation) {
+                        return {
+                            ...baseAsset,
+                            location: allocation.projects?.name || baseAsset.location,
+                        };
+                    }
+                    return baseAsset;
+                });
+                setAssets(mappedAssets);
+                setFilteredAssets(mappedAssets);
+            }
+
         } catch (err) {
             console.error('Error fetching assets:', err);
         } finally {

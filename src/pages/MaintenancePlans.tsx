@@ -236,33 +236,58 @@ const MaintenancePlans: React.FC = () => {
             console.log("Plans with stitched events:", plans);
             setPlans(plans);
 
-            // Fetch Assets
-            const { data: assetsData, error: assetsError } = await supabase.from('assets').select('*');
-            if (assetsError) throw assetsError;
+            // Fetch Assets from all tables
+            const [
+                { data: vehiclesData, error: vehiclesError },
+                { data: machineryData, error: machineryError },
+                { data: itData, error: itError },
+                { data: furnitureData, error: furnitureError },
+                { data: infraData, error: infraError }
+            ] = await Promise.all([
+                supabase.from('vehicles').select('*'),
+                supabase.from('machinery').select('*'),
+                supabase.from('it_equipment').select('*'),
+                supabase.from('mobiliario').select('*'),
+                supabase.from('infrastructures').select('*')
+            ]);
 
-            // Fetch Infrastructures
-            const { data: infraData, error: infraError } = await supabase.from('infrastructures').select('*');
-            if (infraError) throw infraError;
+            if (vehiclesError) console.error("Error loading vehicles:", vehiclesError);
+            if (machineryError) console.error("Error loading machinery:", machineryError);
+            if (itError) console.error("Error loading it_equipment:", itError);
+            if (furnitureError) console.error("Error loading furniture:", furnitureError);
+            if (infraError) console.error("Error loading infrastructures:", infraError);
 
-            const mappedAssets = (assetsData || []).map(db => ({
-                ...mapAssetFromDB(db),
-                category: 'Equipo/Maquinaria'
-            }));
+            const allAssets: Asset[] = [
+                ...(vehiclesData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
+                ...(machineryData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
+                ...(itData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
+                ...(furnitureData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
+                ...(infraData || []).map((db: any) => ({
+                    ...db,
+                    id: db.id,
+                    internalId: db.internal_id,
+                    barcodeId: db.barcode_id,
+                    name: db.name,
+                    description: db.description,
+                    location: db.location,
+                    status: db.status,
+                    image: db.image,
+                    ownership: db.ownership,
+                    dailyRate: db.daily_rate,
+                    regulatoryData: db.regulatory_data || undefined,
+                    type: 'Instalaciones en infraestructuras' as const,
+                    hours: 0,
+                    averageDailyUsage: 0,
+                    category: 'Inmueble/Infraestructura',
+                    functionalDescription: db.functional_description,
+                    complementaryDescription: db.complementary_description,
+                    expirations: [],
+                    incidents: []
+                } as Asset))
+            ];
 
-            const mappedInfras = (infraData || []).map(db => ({
-                ...db,
-                internalId: db.internal_id,
-                barcodeId: db.barcode_id,
-                dailyRate: db.daily_rate,
-                regulatoryData: db.regulatory_data || undefined,
-                type: 'Instalaciones en infraestructuras',
-                hours: 0,
-                averageDailyUsage: 0,
-                category: 'Inmueble/Infraestructura'
-            } as any));
-
-            console.log("Combined Assets & Infras:", [...mappedAssets, ...mappedInfras]);
-            setAssets([...mappedAssets, ...mappedInfras]);
+            console.log("Combined All Assets:", allAssets);
+            setAssets(allAssets);
 
             // Fetch Work Orders
             const { data: woData, error: woError } = await supabase.from('work_orders').select('*');
@@ -828,8 +853,8 @@ const MaintenancePlans: React.FC = () => {
                                         key={type.value}
                                         onClick={() => setAssetTypeFilter(type.value as any)}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
-                                                ? 'bg-slate-800 text-white border-slate-800 shadow-md'
-                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                                             }`}
                                     >
                                         {type.icon}
