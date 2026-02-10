@@ -15,6 +15,26 @@ import { WorkOrderStatus, WorkOrderPriority, Checklist, ChecklistItem, WorkOrder
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
+const mapAssetFromDB = (dbAsset: any): Asset => ({
+    ...dbAsset,
+    internalId: dbAsset.internal_id,
+    barcodeId: dbAsset.barcode_id,
+    dailyRate: dbAsset.daily_rate,
+    originYear: dbAsset.origin_year,
+    usefulLifeRemaining: dbAsset.useful_life_remaining,
+    accountingAccount: dbAsset.accounting_account,
+    functionalDescription: dbAsset.functional_description,
+    complementaryDescription: dbAsset.complementary_description,
+    domainNumber: dbAsset.domain_number,
+    chassisNumber: dbAsset.chassis_number,
+    engineNumber: dbAsset.engine_number,
+    insuranceProvider: dbAsset.insurance_provider,
+    regulatoryData: dbAsset.regulatory_data || undefined,
+    averageDailyUsage: dbAsset.average_daily_usage,
+    expirations: dbAsset.expirations || [],
+    incidents: dbAsset.incidents || [],
+});
+
 // Helper for Checklists mapping
 const mapChecklistFromDB = (db: any): Checklist => ({
     id: db.mock_id || db.id, // Fallback to ID if mock_id missing
@@ -143,6 +163,8 @@ const Maintenance: React.FC = () => {
         frequency: 'Mensual'
     });
 
+    const [assetTypeFilter, setAssetTypeFilter] = useState<'ALL' | 'Rodados' | 'Maquinaria' | 'Instalaciones en infraestructuras' | 'Mobiliario' | 'Equipos de Informática'>('ALL');
+
     // Fetch Data from Supabase
     useEffect(() => {
         const fetchData = async () => {
@@ -158,31 +180,50 @@ const Maintenance: React.FC = () => {
                 if (chkData) setChecklists(chkData.map(mapChecklistFromDB));
 
                 // Assets & Infrastructures (for dropdowns)
-                const [{ data: astData }, { data: infraData }] = await Promise.all([
-                    supabase.from('assets').select('*'),
+                const [
+                    { data: vehiclesData },
+                    { data: machineryData },
+                    { data: itData },
+                    { data: furnitureData },
+                    { data: infraData }
+                ] = await Promise.all([
+                    supabase.from('vehicles').select('*'),
+                    supabase.from('machinery').select('*'),
+                    supabase.from('it_equipment').select('*'),
+                    supabase.from('mobiliario').select('*'),
                     supabase.from('infrastructures').select('*')
                 ]);
 
-                const mappedAssets = (astData || []).map(db => ({
-                    ...db,
-                    internalId: db.internal_id,
-                    barcodeId: db.barcode_id,
-                    dailyRate: db.daily_rate,
-                    regulatoryData: db.regulatory_data || undefined
-                } as Asset));
+                const allAssets: Asset[] = [
+                    ...(vehiclesData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
+                    ...(machineryData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
+                    ...(itData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
+                    ...(furnitureData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
+                    ...(infraData || []).map((db: any) => ({
+                        ...db,
+                        id: db.id,
+                        internalId: db.internal_id,
+                        barcodeId: db.barcode_id,
+                        name: db.name,
+                        description: db.description,
+                        location: db.location,
+                        status: db.status,
+                        image: db.image,
+                        ownership: db.ownership,
+                        dailyRate: db.daily_rate,
+                        regulatoryData: db.regulatory_data || undefined,
+                        type: 'Instalaciones en infraestructuras' as const,
+                        hours: 0,
+                        averageDailyUsage: 0,
+                        category: 'Inmueble/Infraestructura',
+                        functionalDescription: db.functional_description,
+                        complementaryDescription: db.complementary_description,
+                        expirations: [],
+                        incidents: []
+                    } as Asset))
+                ];
 
-                const mappedInfras = (infraData || []).map(db => ({
-                    ...db,
-                    internalId: db.internal_id,
-                    barcodeId: db.barcode_id,
-                    dailyRate: db.daily_rate,
-                    regulatoryData: db.regulatory_data || undefined,
-                    type: 'Instalaciones en infraestructuras', // Special type for filtering/labeling
-                    hours: 0,
-                    averageDailyUsage: 0
-                } as Asset));
-
-                setAssets([...mappedAssets, ...mappedInfras]);
+                setAssets(allAssets);
 
                 // Staff (for dropdowns)
                 const { data: stfData } = await supabase.from('staff').select('*');
@@ -756,6 +797,32 @@ const Maintenance: React.FC = () => {
                             />
                         </div>
 
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {[
+                                    { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                    { label: 'Maquinaria', value: 'Maquinaria', icon: <Wrench size={14} /> },
+                                    { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Informática', value: 'Equipos de Informática', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Mobiliario', value: 'Mobiliario', icon: <CheckCircle2 size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.value}
+                                        onClick={() => setAssetTypeFilter(type.value as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {type.icon}
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-1">
                             <label htmlFor="ot-asset" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo Asociado</label>
                             <div className="relative">
@@ -770,11 +837,13 @@ const Maintenance: React.FC = () => {
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-medium text-slate-700 appearance-none"
                                 >
                                     <option value="">Seleccionar Equipo o Inmueble...</option>
-                                    {assets.map(a => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
-                                        </option>
-                                    ))}
+                                    {assets
+                                        .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                        .map(a => (
+                                            <option key={a.id} value={a.id}>
+                                                {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
+                                            </option>
+                                        ))}
                                 </select>
                                 <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                             </div>
@@ -887,44 +956,72 @@ const Maintenance: React.FC = () => {
 
                 <div className="p-6 space-y-6">
                     {/* 1. Header Info (Asset + Responsible) */}
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
-                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-2">Datos de Inspección</h3>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-6 space-y-4">
+                        <h2 className="font-bold text-slate-800 text-lg">Detalles de la Inspección</h2>
 
-                        <div className="space-y-1">
-                            <label htmlFor="chk-asset" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo a Inspeccionar</label>
-                            <div className="relative">
-                                <select
-                                    id="chk-asset"
-                                    title="Seleccionar Activo a Inspeccionar"
-                                    value={checklistAsset}
-                                    onChange={(e) => setChecklistAsset(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 appearance-none"
-                                >
-                                    <option value="">Seleccionar Equipo o Inmueble...</option>
-                                    {assets.map(a => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {[
+                                    { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                    { label: 'Maquinaria', value: 'Maquinaria', icon: <Wrench size={14} /> },
+                                    { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Informática', value: 'Equipos de Informática', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Mobiliario', value: 'Mobiliario', icon: <CheckCircle2 size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.value}
+                                        onClick={() => setAssetTypeFilter(type.value as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {type.icon}
+                                        {type.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label htmlFor="chk-responsible" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Responsable Técnico</label>
-                            <div className="relative">
-                                <select
-                                    id="chk-responsible"
-                                    title="Seleccionar Responsable Técnico"
-                                    value={checklistResponsible}
-                                    onChange={(e) => setChecklistResponsible(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 appearance-none"
-                                >
-                                    <option value="">Seleccionar personal...</option>
-                                    {staff.map(s => <option key={s.id} value={s.id}>{s.name} - {s.role}</option>)}
-                                </select>
-                                <User size={18} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo a Inspeccionar</label>
+                                <div className="relative">
+                                    <select
+                                        id="chk-asset"
+                                        title="Seleccionar Activo a Inspeccionar"
+                                        value={checklistAsset}
+                                        onChange={(e) => setChecklistAsset(e.target.value)}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-medium text-slate-700 appearance-none"
+                                    >
+                                        <option value="">Seleccionar Equipo...</option>
+                                        {assets
+                                            .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                            .map(a => (
+                                                <option key={a.id} value={a.id}>{a.name} ({a.internalId})</option>
+                                            ))}
+                                    </select>
+                                    <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label htmlFor="chk-responsible" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Responsable Técnico</label>
+                                <div className="relative">
+                                    <select
+                                        id="chk-responsible"
+                                        title="Seleccionar Responsable Técnico"
+                                        value={checklistResponsible}
+                                        onChange={(e) => setChecklistResponsible(e.target.value)}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 appearance-none"
+                                    >
+                                        <option value="">Seleccionar personal...</option>
+                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name} - {s.role}</option>)}
+                                    </select>
+                                    <User size={18} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                </div>
                             </div>
                         </div>
                     </div>

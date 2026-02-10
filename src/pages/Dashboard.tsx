@@ -41,14 +41,33 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch Assets
-                const { data: assetsData } = await supabase
-                    .from('assets')
-                    .select('id, name, status, internal_id');
+                // 1. Fetch Assets from all tables
+                const [
+                    { data: vehiclesData },
+                    { data: machineryData },
+                    { data: itData },
+                    { data: furnitureData },
+                    { data: infraData }
+                ] = await Promise.all([
+                    supabase.from('vehicles').select('id, name, status, internal_id'),
+                    supabase.from('machinery').select('id, name, status, internal_id'),
+                    supabase.from('it_equipment').select('id, name, status, internal_id'),
+                    supabase.from('mobiliario').select('id, name, status, internal_id'),
+                    supabase.from('infrastructures').select('id, name, status, internal_id')
+                ]);
 
-                if (assetsData) setAssets(assetsData);
+                // Combine and normalize
+                const allAssets = [
+                    ...(vehiclesData || []),
+                    ...(machineryData || []),
+                    ...(itData || []),
+                    ...(furnitureData || []),
+                    ...(infraData || [])
+                ];
 
-                // Fetch Active Work Orders
+                if (allAssets.length > 0) setAssets(allAssets);
+
+                // 2. Fetch Active Work Orders
                 const { data: woData } = await supabase
                     .from('work_orders')
                     .select('*')
@@ -56,14 +75,25 @@ const Dashboard: React.FC = () => {
 
                 if (woData) setActiveWorkOrders(woData);
 
-                // Fetch Recent Activity (Latest created work orders)
+                // 3. Fetch Recent Activity (Latest created work orders)
+                // Removed invalid join with 'assets' table
                 const { data: activityData } = await supabase
                     .from('work_orders')
-                    .select('id, title, status, created_at, asset:assets(name)')
+                    .select('id, title, status, created_at, asset_id')
                     .order('created_at', { ascending: false })
                     .limit(5);
 
-                if (activityData) setRecentActivity(activityData);
+                if (activityData) {
+                    // Manually map asset names
+                    const mappedActivity = activityData.map((item: any) => {
+                        const relatedAsset = allAssets.find((a: any) => a.id === item.asset_id);
+                        return {
+                            ...item,
+                            asset: { name: relatedAsset?.name || 'Desconocido' }
+                        };
+                    });
+                    setRecentActivity(mappedActivity);
+                }
 
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);

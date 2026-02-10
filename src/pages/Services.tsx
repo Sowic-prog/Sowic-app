@@ -98,32 +98,57 @@ const Services: React.FC = () => {
             if (srError) throw srError;
             if (srData) setRequests(srData.map(mapServiceRequestFromDB));
 
-            // Fetch Assets
-            const { data: astData, error: astError } = await supabase.from('assets').select('*');
-            if (astError) throw astError;
+            // Fetch All Assets (Split Tables)
+            const [
+                { data: vehiclesData, error: vehiclesError },
+                { data: machineryData, error: machineryError },
+                { data: itData, error: itError },
+                { data: furnitureData, error: furnitureError },
+                { data: infraData, error: infraError }
+            ] = await Promise.all([
+                supabase.from('vehicles').select('*'),
+                supabase.from('machinery').select('*'),
+                supabase.from('it_equipment').select('*'),
+                supabase.from('mobiliario').select('*'),
+                supabase.from('infrastructures').select('*')
+            ]);
 
-            // Fetch Infrastructures
-            const { data: infraData, error: infraError } = await supabase.from('infrastructures').select('*');
-            if (infraError) throw infraError;
+            if (vehiclesError) console.error("Error loading vehicles:", vehiclesError);
+            if (machineryError) console.error("Error loading machinery:", machineryError);
+            if (itError) console.error("Error loading it_equipment:", itError);
+            if (furnitureError) console.error("Error loading furniture:", furnitureError);
+            if (infraError) console.error("Error loading infrastructures:", infraError);
 
-            const mappedAssets = (astData || []).map(db => ({
-                ...mapAssetFromDB(db),
-                category: 'Equipo/Maquinaria'
-            }));
+            const allAssets: Asset[] = [
+                ...(vehiclesData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
+                ...(machineryData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
+                ...(itData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
+                ...(furnitureData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
+                ...(infraData || []).map((db: any) => ({
+                    ...db,
+                    id: db.id,
+                    internalId: db.internal_id,
+                    barcodeId: db.barcode_id,
+                    name: db.name,
+                    description: db.description,
+                    location: db.location,
+                    status: db.status,
+                    image: db.image,
+                    ownership: db.ownership,
+                    dailyRate: db.daily_rate,
+                    regulatoryData: db.regulatory_data || undefined,
+                    type: 'Instalaciones en infraestructuras' as const,
+                    hours: 0,
+                    averageDailyUsage: 0,
+                    category: 'Inmueble/Infraestructura',
+                    functionalDescription: db.functional_description,
+                    complementaryDescription: db.complementary_description,
+                    expirations: [],
+                    incidents: []
+                } as Asset))
+            ];
 
-            const mappedInfras = (infraData || []).map(db => ({
-                ...db,
-                internalId: db.internal_id,
-                barcodeId: db.barcode_id,
-                dailyRate: db.daily_rate,
-                regulatoryData: db.regulatory_data || undefined,
-                type: 'Instalaciones en infraestructuras',
-                hours: 0,
-                averageDailyUsage: 0,
-                category: 'Inmueble/Infraestructura'
-            } as any));
-
-            setAssets([...mappedAssets, ...mappedInfras]);
+            setAssets(allAssets);
 
             // Fetch Projects for locations
             const { data: projData, error: projError } = await supabase.from('projects').select('*');

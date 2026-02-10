@@ -88,20 +88,7 @@ const Logistics: React.FC = () => {
 
     // ... (rest of the code)
 
-    const fetchStaff = async () => {
-        try {
-            const { data, error } = await supabase.from('staff').select('*');
-            if (error) console.error("Error fetching staff:", error);
-            else if (data) setDbStaff(data);
-        } catch (e) { console.error(e) }
-    };
 
-    useEffect(() => {
-        fetchTransfers();
-        fetchAssets();
-        fetchProjects();
-        fetchStaff();
-    }, []);
 
 
     const [currentTransferId, setCurrentTransferId] = useState<string | null>(null);
