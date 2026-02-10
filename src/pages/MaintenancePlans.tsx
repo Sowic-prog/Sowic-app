@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, Plus, Calendar, Clock, Wrench, ChevronRight, CheckCircle2, Sparkles, Loader2, FileText, AlertTriangle, X, Save, Trash2, Info, ArrowRight, Timer, CalendarClock, Play, Edit2, TrendingUp, CalendarDays, ExternalLink, GripVertical, Check, ChevronDown, MapPin, Bot } from 'lucide-react';
+import { ChevronLeft, Plus, Calendar, Clock, Wrench, ChevronRight, CheckCircle2, Sparkles, Loader2, FileText, AlertTriangle, X, Save, Trash2, Info, ArrowRight, Timer, CalendarClock, Play, Edit2, TrendingUp, CalendarDays, ExternalLink, GripVertical, Check, ChevronDown, MapPin, Bot, Truck, HardHat, Box, Laptop, Armchair } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenancePlan, MaintenanceEvent, MaintenanceTask, Asset } from '../types';
@@ -156,7 +156,9 @@ const MaintenancePlans: React.FC = () => {
 
     // Event Editing States
     const [editingEventId, setEditingEventId] = useState<string | null>(null);
+
     const [tempEventData, setTempEventData] = useState<MaintenanceEvent | null>(null);
+    const [assetTypeFilter, setAssetTypeFilter] = useState<'ALL' | 'Rodados' | 'Maquinaria' | 'Instalaciones en infraestructuras' | 'Mobiliario' | 'Equipos de Informática'>('ALL');
 
     useEffect(() => {
         if (location.state && assets.length > 0) {
@@ -811,6 +813,32 @@ const MaintenancePlans: React.FC = () => {
                             <TrendingUp size={16} className="text-orange-500" /> Configuración de Proyección
                         </h3>
 
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {[
+                                    { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                    { label: 'Maquinaria', value: 'Maquinaria', icon: <HardHat size={14} /> },
+                                    { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <MapPin size={14} /> },
+                                    { label: 'Informática', value: 'Equipos de Informática', icon: <Laptop size={14} /> },
+                                    { label: 'Mobiliario', value: 'Mobiliario', icon: <Armchair size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.value}
+                                        onClick={() => setAssetTypeFilter(type.value as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                                ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {type.icon}
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-1">
                             <label htmlFor="plan-asset" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo Asociado</label>
                             <div className="relative">
@@ -837,11 +865,13 @@ const MaintenancePlans: React.FC = () => {
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-bold text-slate-800 appearance-none"
                                 >
                                     <option value="">Seleccionar Equipo o Inmueble...</option>
-                                    {assets.map(a => (
-                                        <option key={a.id} value={a.id}>
-                                            {(a as any).category === 'Inmueble/Infraestructura' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
-                                        </option>
-                                    ))}
+                                    {assets
+                                        .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                        .map(a => (
+                                            <option key={a.id} value={a.id}>
+                                                {(a as any).category === 'Inmueble/Infraestructura' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
+                                            </option>
+                                        ))}
                                 </select>
                                 <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                             </div>

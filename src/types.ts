@@ -79,7 +79,7 @@ export interface Asset {
   internalId: string; // e.g., ACT-0042
   barcodeId: string; // 4-digit ID (Optional for Rented)
   name: string;
-  type: 'Equipos de Informática' | 'Instalaciones en infraestructuras' | 'Maquinaria' | 'Rodados' | 'Otros';
+  type: 'Equipos de Informática' | 'Instalaciones en infraestructuras' | 'Maquinaria' | 'Rodados' | 'Mobiliario' | 'Otros';
   description: string; // Keep for backward compatibility or short summary
   status: AssetStatus;
   ownership: AssetOwnership;
@@ -98,6 +98,11 @@ export interface Asset {
   // New Fields
   accountingAccount?: string; // Cuenta Contable
   functionalDescription?: string; // Descripción Funcional
+
+  // IT Equipment Specific
+  processor?: string;
+  ram?: string;
+  storage?: string;
   complementaryDescription?: string; // Descripción Complementaria
   originYear?: number; // Año de Origen (Purchase/Acquisition year)
   usefulLifeRemaining?: number; // VÚR (Años)
@@ -108,6 +113,11 @@ export interface Asset {
   chassisNumber?: string;
   engineNumber?: string;
   insuranceProvider?: string; // Proveedor de Seguro
+
+  // IT Specific Fields
+  operatingSystem?: string;
+  ipAddress?: string;
+  macAddress?: string;
 
   expirations?: AssetExpiration[];
   incidents?: AssetIncident[]; // Siniestros

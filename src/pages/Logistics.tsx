@@ -5,7 +5,7 @@ import {
     ChevronLeft, ChevronRight, Save, X, PenTool, ArrowUpRight,
     ArrowDownLeft, Search, AlertTriangle, ImagePlus, Trash2,
     History, MoveRight, CheckCircle2, XCircle, MessageSquare, ScanEye, Loader2, Sparkles,
-    ArrowLeftRight, ChevronDown, HardHat, CalendarDays, Edit3, Eye, User, FileText, DollarSign, Clock
+    ArrowLeftRight, ChevronDown, HardHat, CalendarDays, Edit3, Eye, User, FileText, DollarSign, Clock, Box, Laptop, Armchair
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { supabase } from '../supabaseClient';
@@ -74,6 +74,7 @@ const Logistics: React.FC = () => {
     const canEdit = checkPermission('/logistics', 'edit');
     const [view, setView] = useState<LogisticsView>('menu');
     const [filter, setFilter] = useState<FilterType>('all');
+    const [assetTypeFilter, setAssetTypeFilter] = useState<'ALL' | 'Rodados' | 'Maquinaria' | 'Instalaciones en infraestructuras' | 'Mobiliario' | 'Equipos de Informática'>('ALL');
 
     // Data State
     const [dbStaff, setDbStaff] = useState<any[]>([]);
@@ -120,15 +121,15 @@ const Logistics: React.FC = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [allocationForm, setAllocationForm] = useState<{
         id?: string;
-        assetId: string;
+        assetIds: string[];
         projectId: string;
         startDate: string;
         endDate: string;
     }>({
-        assetId: '',
+        assetIds: [],
         projectId: '',
         startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        endDate: '' // Optional now
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -264,7 +265,22 @@ const Logistics: React.FC = () => {
     }, []);
 
     // Helpers
-    const selectedAssetData = useMemo(() => dbAssets.find(a => a.id === allocationForm.assetId), [allocationForm.assetId, dbAssets]);
+    // For single selection display (if only 1 selected) - mostly for header preview
+    const selectedAssetData = useMemo(() => {
+        if (allocationForm.assetIds.length === 1) {
+            return dbAssets.find(a => a.id === allocationForm.assetIds[0]);
+        } else if (allocationForm.assetIds.length > 1) {
+            return {
+                id: 'multiple',
+                name: `${allocationForm.assetIds.length} Activos Seleccionados`,
+                internalId: 'VARIOS',
+                location: 'Múltiples Ubicaciones',
+                image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&q=80', // Box/Collection image
+                status: 'Disponible'
+            } as any; // Cast to any to simpler handling in UI without changing Asset type heavily
+        }
+        return null;
+    }, [allocationForm.assetIds, dbAssets]);
     const assetForTransfer = useMemo(() => dbAssets.find(a => a.id === selectedAssetId), [selectedAssetId, dbAssets]);
 
     // Combined locations list
@@ -494,32 +510,44 @@ const Logistics: React.FC = () => {
     };
 
     const handleSaveAllocation = async () => {
-        if (!allocationForm.assetId || !allocationForm.projectId) {
-            alert("Por favor seleccione un activo y una obra de destino.");
+        if (allocationForm.assetIds.length === 0 || !allocationForm.projectId) {
+            alert("Por favor seleccione al menos un activo y una obra de destino.");
             return;
         }
 
-        const payload = {
-            asset_id: allocationForm.assetId,
-            project_id: allocationForm.projectId,
-            start_date: allocationForm.startDate,
-            end_date: allocationForm.endDate,
-            status: 'Programado'
-        };
-
         try {
             if (allocationForm.id) {
-                // Update
+                // Update Single Allocation (Legacy behavior for editing single)
+                // Note: We only allow editing one at a time for simplicity usually, 
+                // but our form now supports multi-select. 
+                // If editing, we assume assetIds has 1 item.
+
+                const payload = {
+                    asset_id: allocationForm.assetIds[0],
+                    project_id: allocationForm.projectId,
+                    start_date: allocationForm.startDate,
+                    end_date: allocationForm.endDate || null, // Handle optional
+                    status: 'Programado'
+                };
+
                 const { error } = await supabase
                     .from('asset_allocations')
                     .update(payload)
                     .eq('id', allocationForm.id);
                 if (error) throw error;
             } else {
-                // Insert
+                // Insert Multiple
+                const payloads = allocationForm.assetIds.map(assetId => ({
+                    asset_id: assetId,
+                    project_id: allocationForm.projectId,
+                    start_date: allocationForm.startDate,
+                    end_date: allocationForm.endDate || null, // Handle optional
+                    status: 'Programado'
+                }));
+
                 const { error } = await supabase
                     .from('asset_allocations')
-                    .insert(payload);
+                    .insert(payloads);
                 if (error) throw error;
             }
 
@@ -535,10 +563,10 @@ const Logistics: React.FC = () => {
     const handleEditAllocation = (alloc: AssetAllocation) => {
         setAllocationForm({
             id: alloc.id,
-            assetId: alloc.assetId,
+            assetIds: [alloc.assetId],
             projectId: alloc.projectId,
             startDate: alloc.startDate,
-            endDate: alloc.endDate
+            endDate: alloc.endDate || ''
         });
         setView('allocation_form');
     };
@@ -546,10 +574,10 @@ const Logistics: React.FC = () => {
     const handleNewAllocation = () => {
         setAllocationForm({
             id: undefined,
-            assetId: '',
+            assetIds: [],
             projectId: '',
             startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            endDate: ''
         });
         setView('allocation_form');
     };
@@ -581,14 +609,66 @@ const Logistics: React.FC = () => {
                         </div>
                     )}
                     <div className="space-y-5">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {[
+                                    { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                    { label: 'Maquinaria', value: 'Maquinaria', icon: <HardHat size={14} /> },
+                                    { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <MapPin size={14} /> },
+                                    { label: 'Informática', value: 'Equipos de Informática', icon: <Laptop size={14} /> },
+                                    { label: 'Mobiliario', value: 'Mobiliario', icon: <Armchair size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.value}
+                                        onClick={() => setAssetTypeFilter(type.value as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {type.icon}
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Activo a Movilizar</label>
-                            <div className="relative">
-                                <select id="asset-select" value={allocationForm.assetId} onChange={(e) => setAllocationForm({ ...allocationForm, assetId: e.target.value })} className="w-full p-4 bg-white border border-slate-200 rounded-2xl appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-bold text-slate-800 shadow-sm" aria-label="Seleccionar activo a movilizar">
-                                    <option value="">Seleccionar de la flota...</option>
-                                    {dbAssets && dbAssets.length > 0 ? dbAssets.map(asset => (<option key={asset.id} value={asset.id}>{asset.name} [{asset.internalId}]</option>)) : <option disabled>Cargando activos...</option>}
-                                </select>
-                                <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Activos a Movilizar ({allocationForm.assetIds.length})</label>
+
+                            <div className="bg-white border border-slate-200 rounded-2xl max-h-60 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                {dbAssets && dbAssets.length > 0 ? (
+                                    dbAssets
+                                        .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                        .map(asset => {
+                                            const isSelected = allocationForm.assetIds.includes(asset.id);
+                                            return (
+                                                <div
+                                                    key={asset.id}
+                                                    onClick={() => {
+                                                        const current = allocationForm.assetIds;
+                                                        const newIds = current.includes(asset.id)
+                                                            ? current.filter(id => id !== asset.id)
+                                                            : [...current, asset.id];
+                                                        setAllocationForm({ ...allocationForm, assetIds: newIds });
+                                                    }}
+                                                    className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${isSelected ? 'bg-orange-50 border border-orange-100' : 'hover:bg-slate-50 border border-transparent'}`}
+                                                >
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                                        {isSelected && <Check size={12} strokeWidth={4} />}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`text-sm font-bold ${isSelected ? 'text-orange-900' : 'text-slate-700'}`}>{asset.name}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{asset.internalId} • {asset.location}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                ) : (
+                                    <p className="p-4 text-center text-xs text-slate-400">Cargando activos...</p>
+                                )}
                             </div>
                         </div>
                         <div className="space-y-1.5">

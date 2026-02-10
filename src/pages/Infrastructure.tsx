@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
     Building2, Zap, Lightbulb, PersonStanding, ChevronRight,
     MapPin, Calendar, AlertTriangle, CheckCircle2, FileText,
-    ChevronLeft, ArrowRight, ShieldCheck, Ruler, Plus, Printer, Edit3, Save, X, Camera
+    ChevronLeft, ArrowRight, ShieldCheck, Ruler, Plus, Printer, Edit3, Save, X, Camera, Package
 } from 'lucide-react';
+import AssetImportModal from '../components/AssetImportModal';
 import { Asset, AssetStatus } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +26,7 @@ const mapInfrastructureFromDB = (db: any): Asset => ({
 const mapInfrastructureToDB = (infra: Partial<Asset>) => {
     const {
         internalId, barcodeId, dailyRate, regulatoryData,
-        type, // Exclude 'type' from payload
+        type, // Exclude 'type' from payload as it might not be in infrastructures table or is implicitly known
         hours, // Exclude 'hours'
         averageDailyUsage, // Exclude usage
         ...rest
@@ -51,6 +52,7 @@ const Infrastructure: React.FC = () => {
     // States for Create/Edit
     const [isCreating, setIsCreating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<Asset>>({
         name: '',
         internalId: '',
@@ -70,14 +72,16 @@ const Infrastructure: React.FC = () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('infrastructures')
+                .from('infrastructures') // Reverted to 'infrastructures'
                 .select('*')
+                // Removed .eq('type', ...)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
             if (data) setLocalAssets(data.map(mapInfrastructureFromDB));
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error fetching infrastructures:', err);
+            // Verify if it's just empty or actual error
         } finally {
             setLoading(false);
         }
@@ -174,6 +178,7 @@ const Infrastructure: React.FC = () => {
                 }
             });
 
+            // Reverted to 'infrastructures'
             const { error } = await supabase.from('infrastructures').insert(payload);
             if (error) throw error;
 
@@ -196,6 +201,7 @@ const Infrastructure: React.FC = () => {
 
         try {
             const payload = mapInfrastructureToDB(formData);
+            // Reverted to 'infrastructures'
             const { error } = await supabase
                 .from('infrastructures')
                 .update(payload)
@@ -554,18 +560,33 @@ const Infrastructure: React.FC = () => {
     return (
         <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans">
             <div className="bg-white p-6 sticky top-0 z-10 shadow-sm flex items-center justify-between no-print">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Infraestructuras</h1>
-                    <p className="text-sm text-slate-500">Gestión de inmuebles y controles legales</p>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => navigate('/assets')} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                        <ChevronLeft size={24} />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">Infraestructuras</h1>
+                        <p className="text-sm text-slate-500">Gestión de inmuebles y controles legales</p>
+                    </div>
                 </div>
                 {canEdit && (
-                    <button
-                        onClick={handleOpenCreate}
-                        className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
-                        title="Agregar Nueva Infraestructura"
-                    >
-                        <Plus size={24} />
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="w-12 h-12 bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-sm hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                            aria-label="Importar Activos"
+                            title="Importar Activos"
+                        >
+                            <Package size={24} />
+                        </button>
+                        <button
+                            onClick={handleOpenCreate}
+                            className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
+                            title="Agregar Nueva Infraestructura"
+                        >
+                            <Plus size={24} />
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -628,6 +649,17 @@ const Infrastructure: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Import Modal */}
+            <AssetImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onSuccess={() => {
+                    fetchInfrastructures();
+                }}
+                initialAssetType="Instalaciones en infraestructuras"
+                forceAssetType={true}
+            />
         </div>
     );
 };

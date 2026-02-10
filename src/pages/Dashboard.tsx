@@ -5,7 +5,7 @@ import {
     Bell, Search, QrCode, ClipboardList, TrendingUp, AlertTriangle,
     Package, Users, ChevronRight, Truck, MoreHorizontal, Wrench,
     Bot, Handshake, LayoutGrid, HardHat, LifeBuoy, X, Folder, User, Wrench as WrenchIcon, Tag, Box,
-    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History
+    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History, Grid, BarChart3, Calendar
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -195,12 +195,20 @@ const Dashboard: React.FC = () => {
     const operationalCount = statusCounts['Disponible'] || 0;
     const operationalPercentage = totalAssets > 0 ? Math.round((operationalCount / totalAssets) * 100) : 0;
 
-    const quickMenu = [
-        { id: 'assets', label: 'Mis Activos', icon: Bot, path: '/assets', color: 'bg-orange-500', iconColor: 'text-white' },
-        { id: 'projects', label: 'Obras', icon: HardHat, path: '/projects', color: 'bg-slate-800', iconColor: 'text-white' },
-        { id: 'services', label: 'Solicitudes', icon: LifeBuoy, path: '/services', color: 'bg-slate-200', iconColor: 'text-slate-600' }, // Changed to gray
+    const mainModules = [
+        { id: 'services', label: 'Servicios', icon: LifeBuoy, path: '/services', color: 'bg-white', iconColor: 'text-slate-600' },
         { id: 'personnel', label: 'Personal', icon: Users, path: '/personnel', color: 'bg-white', iconColor: 'text-orange-500' },
+        { id: 'projects', label: 'Obras', icon: Folder, path: '/projects', color: 'bg-slate-800', iconColor: 'text-white' },
+        { id: 'assets', label: 'Mis Activos', icon: Grid, path: '/assets', color: 'bg-orange-500', iconColor: 'text-white' },
+        { id: 'maintenance', label: 'Mantenimiento', icon: Wrench, path: '/maintenance', color: 'bg-orange-50', iconColor: 'text-orange-600' },
+    ];
+
+    const managementModules = [
+        { id: 'reports', label: 'Reportes', icon: BarChart3, path: '/reports', color: 'bg-white', iconColor: 'text-slate-600' },
+        { id: 'logistics', label: 'Logística', icon: Truck, path: '/logistics', color: 'bg-white', iconColor: 'text-slate-600' },
         { id: 'inventory', label: 'Inventario', icon: Package, path: '/inventory', color: 'bg-white', iconColor: 'text-slate-600' },
+        { id: 'providers', label: 'Proveedores', icon: Handshake, path: '/providers', color: 'bg-white', iconColor: 'text-slate-600' },
+        { id: 'calendar', label: 'Calendario', icon: Calendar, path: '/calendar', color: 'bg-white', iconColor: 'text-slate-600' },
     ];
 
     if (isScanning) {
@@ -510,16 +518,38 @@ const Dashboard: React.FC = () => {
                         </h3>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        {quickMenu.map((item) => (
+                        {mainModules.map((item) => (
                             <button
                                 key={item.id}
                                 onClick={() => navigate(item.path)}
                                 className={`${item.color} p-5 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden`}
                             >
-                                <div className={`w-12 h-12 ${['personnel', 'inventory', 'services'].includes(item.id) ? 'bg-white' : 'bg-white/20'} rounded-2xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
+                                <div className={`w-12 h-12 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-2xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
                                     <item.icon size={26} />
                                 </div>
-                                <span className={`text-sm font-bold ${['personnel', 'inventory', 'services'].includes(item.id) ? 'text-slate-700' : 'text-white'}`}>
+                                <span className={`text-sm font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-700'}`}>
+                                    {item.label}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center justify-between mb-4 mt-8">
+                        <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest flex items-center gap-2">
+                            Gestión
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                        {managementModules.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => navigate(item.path)}
+                                className={`${item.color} p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group relative overflow-hidden h-28`}
+                            >
+                                <div className={`w-10 h-10 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
+                                    <item.icon size={20} />
+                                </div>
+                                <span className={`text-[10px] font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-600'}`}>
                                     {item.label}
                                 </span>
                             </button>

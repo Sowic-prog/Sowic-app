@@ -20,6 +20,14 @@ const Services = React.lazy(() => import('./pages/Services'));
 const CalendarPage = React.lazy(() => import('./pages/Calendar'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Login = React.lazy(() => import('./pages/Login'));
+const Checklist = React.lazy(() => import('./pages/Checklist'));
+
+// New Asset Pages
+const Vehicles = React.lazy(() => import('./pages/Vehicles'));
+const Machinery = React.lazy(() => import('./pages/Machinery'));
+const ITEquipment = React.lazy(() => import('./pages/ITEquipment'));
+const Installations = React.lazy(() => import('./pages/Installations'));
+const Furniture = React.lazy(() => import('./pages/Furniture'));
 
 // Simple Loading Component for Suspense
 const LoadingFallback = () => (
@@ -54,14 +62,47 @@ const App: React.FC = () => {
                   <Assets />
                 </Layout>
               } />
-              <Route path="/infrastructure" element={
-                <Layout>
-                  <Infrastructure />
-                </Layout>
-              } />
+              <Route path="/infrastructure" element={<Navigate to="/assets/infrastructure" replace />} />
               <Route path="/maintenance" element={
                 <Layout>
                   <Maintenance />
+                </Layout>
+              } />
+              <Route path="/checklist" element={
+                <Layout>
+                  <Checklist />
+                </Layout>
+              } />
+
+              {/* Sub-Asset Modules */}
+              <Route path="/assets/vehicles" element={
+                <Layout>
+                  <Vehicles />
+                </Layout>
+              } />
+              <Route path="/assets/machinery" element={
+                <Layout>
+                  <Machinery />
+                </Layout>
+              } />
+              <Route path="/assets/it" element={
+                <Layout>
+                  <ITEquipment />
+                </Layout>
+              } />
+              <Route path="/assets/installations" element={
+                <Layout>
+                  <Installations />
+                </Layout>
+              } />
+              <Route path="/assets/furniture" element={
+                <Layout>
+                  <Furniture />
+                </Layout>
+              } />
+              <Route path="/assets/infrastructure" element={
+                <Layout>
+                  <Infrastructure />
                 </Layout>
               } />
 

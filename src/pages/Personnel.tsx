@@ -25,7 +25,7 @@ const DEFAULT_MODULES = [
   { path: '/services', label: 'Solicitudes y Servicios' },
   { path: '/calendar', label: 'Calendario y Agenda' },
   { path: '/reports', label: 'Reportes' },
-  { path: '/infrastructure', label: 'Infraestructura' },
+  { path: '/assets/infrastructure', label: 'Infraestructura' },
 ];
 
 const Personnel: React.FC = () => {

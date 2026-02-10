@@ -4,7 +4,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, Car, Folder, Plus, X, Users, Package,
   Handshake, Truck, LifeBuoy, Wrench, Calendar,
-  FileText, BarChart3, Building2, LogOut
+  FileText, BarChart3, Building2, LogOut, ChevronDown, Monitor, Hammer, ChevronsRight, UtilityPole, Grid,
+  Tractor, Fan, Briefcase, Armchair, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,6 +15,8 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isAssetsMenuOpen, setIsAssetsMenuOpen] = React.useState(false);
+  const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, checkPermission, user } = useAuth();
@@ -25,18 +28,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const desktopNavItems = [
     { to: '/', icon: Home, label: 'Inicio' },
-    { to: '/assets', icon: Car, label: 'Activos' },
-    { to: '/infrastructure', icon: Building2, label: 'Infraestructura' },
-    { to: '/projects', icon: Folder, label: 'Obras' },
-    { to: '/maintenance', icon: Wrench, label: 'Taller' },
-  ].filter(item => checkPermission(item.to));
-
-  const desktopMenuItems = [
-    { to: '/maintenance/plans', icon: FileText, label: 'Planes Mant.' },
-    { to: '/reports', icon: BarChart3, label: 'Reportes' },
-    { to: '/logistics', icon: Truck, label: 'Logística' },
     { to: '/services', icon: LifeBuoy, label: 'Servicios' },
     { to: '/personnel', icon: Users, label: 'Personal' },
+    { to: '/projects', icon: Folder, label: 'Obras' },
+  ].filter(item => checkPermission(item.to));
+
+  const assetsSubmenu = [
+    { to: '/assets/vehicles', icon: Car, label: 'Rodados' },
+    { to: '/assets/machinery', icon: Tractor, label: 'Maquinaria' },
+    { to: '/assets/it', icon: Monitor, label: 'Informática' },
+    { to: '/assets/installations', icon: Fan, label: 'Instalaciones' },
+    { to: '/assets/furniture', icon: Armchair, label: 'Mobiliario' },
+    { to: '/assets/infrastructure', icon: Building2, label: 'Infraestructura' },
+  ];
+
+  const desktopMenuItems = [
+    { to: '/reports', icon: BarChart3, label: 'Reportes' },
+    { to: '/logistics', icon: Truck, label: 'Logística' },
     { to: '/inventory', icon: Package, label: 'Inventario' },
     { to: '/providers', icon: Handshake, label: 'Proveedores' },
     { to: '/calendar', icon: Calendar, label: 'Calendario' },
@@ -44,8 +52,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // El menú global móvil con colores de marca (Naranja y Gris)
   const globalOverlayItems = [
+    { to: '/assets', icon: Grid, label: 'Mis Activos', color: 'text-orange-600', bgColor: 'bg-orange-100' },
     { to: '/maintenance', icon: Wrench, label: 'Taller', color: 'text-orange-600', bgColor: 'bg-orange-100' },
-    { to: '/infrastructure', icon: Building2, label: 'Infraestructura', color: 'text-slate-600', bgColor: 'bg-slate-100' },
+    { to: '/assets/infrastructure', icon: Building2, label: 'Infraestructura', color: 'text-slate-600', bgColor: 'bg-slate-100' },
     { to: '/maintenance/plans', icon: FileText, label: 'Planes Mant.', color: 'text-slate-600', bgColor: 'bg-slate-100' },
     { to: '/projects', icon: Folder, label: 'Obras', color: 'text-orange-600', bgColor: 'bg-orange-100' },
     { to: '/logistics', icon: Truck, label: 'Logística', color: 'text-orange-600', bgColor: 'bg-orange-100' },
@@ -58,7 +67,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const mobileNavItems = [
     { to: '/', icon: Home, label: 'Inicio' },
-    { to: '/assets', icon: Car, label: 'Activos' },
+    { to: '/assets', icon: Grid, label: 'Activos' },
     { to: 'create-action', icon: Plus, label: '', isAction: true },
     { to: '/reports', icon: BarChart3, label: 'Reportes' },
     { to: '/calendar', icon: Calendar, label: 'Calendario' },
@@ -77,6 +86,75 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <item.icon size={20} /><span className="text-sm">{item.label}</span>
             </NavLink>
           ))}
+
+          {/* Mis Activos Submenu */}
+          {checkPermission('/assets') && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setIsAssetsMenuOpen(!isAssetsMenuOpen)}
+                className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-200 font-medium ${location.pathname.startsWith('/assets') ? 'bg-orange-50 text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Briefcase size={20} />
+                  <span className="text-sm">Mis Activos</span>
+                </div>
+                <ChevronDown size={16} className={`transition-transform duration-200 ${isAssetsMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isAssetsMenuOpen && (
+                <div className="pl-4 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                  {assetsSubmenu.map((subItem) => (
+                    <NavLink
+                      key={subItem.to}
+                      to={subItem.to}
+                      className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${isActive ? 'text-orange-600 bg-orange-50/50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <subItem.icon size={16} />
+                      <span>{subItem.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Mantenimiento Submenu */}
+          {(checkPermission('/maintenance') || checkPermission('/maintenance/plans') || checkPermission('/checklist')) && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setIsMaintenanceMenuOpen(!isMaintenanceMenuOpen)}
+                className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-200 font-medium ${location.pathname.startsWith('/maintenance') || location.pathname.startsWith('/checklist') ? 'bg-orange-50 text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Wrench size={20} />
+                  <span className="text-sm">Mantenimiento</span>
+                </div>
+                <ChevronDown size={16} className={`transition-transform duration-200 ${isMaintenanceMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isMaintenanceMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="pl-4 space-y-1 pt-1">
+                  {checkPermission('/maintenance') && (
+                    <NavLink to="/maintenance" end className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isActive ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                      <FileText size={18} />
+                      <span>Órdenes de Trabajo</span>
+                    </NavLink>
+                  )}
+                  {checkPermission('/maintenance/plans') && (
+                    <NavLink to="/maintenance/plans" className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isActive ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                      <Calendar size={18} />
+                      <span>Planes Mant.</span>
+                    </NavLink>
+                  )}
+                  {checkPermission('/checklist') && (
+                    <NavLink to="/checklist" className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isActive ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                      <CheckCircle2 size={18} />
+                      <span>Check List</span>
+                    </NavLink>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {desktopMenuItems.length > 0 && (
             <>
               <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-8 mb-3">Gestión</p>

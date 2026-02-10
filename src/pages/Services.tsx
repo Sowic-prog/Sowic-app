@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
     LifeBuoy, Clock, MapPin, AlertCircle, Plus, Filter, Search,
     ChevronLeft, Save, X, Edit3, Trash2, CheckCircle2, AlertTriangle,
-    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2
+    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2, Truck, HardHat, Box, Laptop, Armchair
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ServiceRequest, Asset, Project } from '../types';
@@ -69,6 +69,7 @@ const Services: React.FC = () => {
     const [view, setView] = useState<ViewMode>('list');
     const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
     const [filterStatus, setFilterStatus] = useState<'Todas' | 'Pendiente' | 'En Proceso' | 'Resuelto'>('Todas');
+    const [assetTypeFilter, setAssetTypeFilter] = useState<'ALL' | 'Rodados' | 'Maquinaria' | 'Instalaciones en infraestructuras' | 'Mobiliario' | 'Equipos de Informática'>('ALL');
 
     // Form State
     const [formData, setFormData] = useState<Partial<ServiceRequest>>({
@@ -273,6 +274,32 @@ const Services: React.FC = () => {
                             />
                         </div>
 
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {[
+                                    { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                    { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                    { label: 'Maquinaria', value: 'Maquinaria', icon: <HardHat size={14} /> },
+                                    { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <MapPin size={14} /> },
+                                    { label: 'Informática', value: 'Equipos de Informática', icon: <Laptop size={14} /> },
+                                    { label: 'Mobiliario', value: 'Mobiliario', icon: <Armchair size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.value}
+                                        onClick={() => setAssetTypeFilter(type.value as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {type.icon}
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo Relacionado (Opcional)</label>
                             <div className="relative">
@@ -290,11 +317,13 @@ const Services: React.FC = () => {
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-700 appearance-none"
                                 >
                                     <option value="">Ninguno / General</option>
-                                    {assets.map(asset => (
-                                        <option key={asset.id} value={asset.id}>
-                                            {(asset as any).category === 'Inmueble/Infraestructura' ? '[INFRA] ' : ''}{asset.name} ({asset.internalId})
-                                        </option>
-                                    ))}
+                                    {assets
+                                        .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                        .map(asset => (
+                                            <option key={asset.id} value={asset.id}>
+                                                {(asset as any).category === 'Inmueble/Infraestructura' ? '[INFRA] ' : ''}{asset.name} ({asset.internalId})
+                                            </option>
+                                        ))}
                                 </select>
                                 <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
