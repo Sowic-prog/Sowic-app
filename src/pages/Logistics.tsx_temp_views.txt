@@ -1,0 +1,760 @@
+
+        // --- VIEWS ---
+
+        // 1. ALLOCATION FORM VIEW
+        if (view === 'allocation_form') {
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-20 font-sans animate-in slide-in-from-right-5 duration-300">
+                    <div className="bg-white p-4 sticky top-0 z-10 shadow-sm flex items-center justify-between">
+                        <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50" aria-label="Volver al menú principal"><ChevronLeft size={24} /></button>
+                        <h1 className="font-bold text-lg text-slate-800">{allocationForm.id ? 'Editar Asignación' : 'Programar Asignación'}</h1>
+                        <button onClick={handleSaveAllocation} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full">Confirmar</button>
+                    </div>
+                    <div className="p-6 space-y-8">
+                        {selectedAssetData && (
+                            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-4 animate-in fade-in zoom-in-95">
+                                <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 border border-slate-50">
+                                    <img src={selectedAssetData.image} className="w-full h-full object-cover" alt="Activo seleccionado" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{selectedAssetData.internalId}</p>
+                                    <h3 className="font-bold text-slate-800 leading-tight mb-1">{selectedAssetData.name}</h3>
+                                    <div className="flex items-center gap-1 text-[10px] text-orange-500 font-bold uppercase">
+                                        <MapPin size={10} /> {selectedAssetData.location}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div className="space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
+                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                    {[
+                                        { label: 'Todos', value: 'ALL', icon: <CheckCircle2 size={14} /> },
+                                        { label: 'Vehículos', value: 'Rodados', icon: <Truck size={14} /> },
+                                        { label: 'Maquinaria', value: 'Maquinaria', icon: <HardHat size={14} /> },
+                                        { label: 'Inmuebles', value: 'Instalaciones en infraestructuras', icon: <MapPin size={14} /> },
+                                        { label: 'Informática', value: 'Equipos de Informática', icon: <Laptop size={14} /> },
+                                        { label: 'Mobiliario', value: 'Mobiliario', icon: <Armchair size={14} /> },
+                                    ].map(type => (
+                                        <button
+                                            key={type.value}
+                                            onClick={() => setAssetTypeFilter(type.value as any)}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${assetTypeFilter === type.value
+                                                ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {type.icon}
+                                            {type.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Activos a Movilizar ({allocationForm.assetIds.length})</label>
+
+                                <div className="bg-white border border-slate-200 rounded-2xl max-h-60 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                    {dbAssets && dbAssets.length > 0 ? (
+                                        dbAssets
+                                            .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
+                                            .map(asset => {
+                                                const isSelected = allocationForm.assetIds.includes(asset.id);
+                                                return (
+                                                    <div
+                                                        key={asset.id}
+                                                        onClick={() => {
+                                                            const current = allocationForm.assetIds;
+                                                            const newIds = current.includes(asset.id)
+                                                                ? current.filter(id => id !== asset.id)
+                                                                : [...current, asset.id];
+                                                            setAllocationForm({ ...allocationForm, assetIds: newIds });
+                                                        }}
+                                                        className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${isSelected ? 'bg-orange-50 border border-orange-100' : 'hover:bg-slate-50 border border-transparent'}`}
+                                                    >
+                                                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                                            {isSelected && <Check size={12} strokeWidth={4} />}
+                                                        </div>
+                                                        <div>
+                                                            <p className={`text-sm font-bold ${isSelected ? 'text-orange-900' : 'text-slate-700'}`}>{asset.name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">{asset.internalId} • {asset.location}</p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                    ) : (
+                                        <p className="p-4 text-center text-xs text-slate-400">Cargando activos...</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <MapPin size={18} className="text-orange-500" />
+                                    <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Logística del Remito</h3>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Origen</label>
+                                        <div className="relative">
+                                            <select
+                                                value={allocationForm.fromLocation}
+                                                onChange={(e) => setAllocationForm({ ...allocationForm, fromLocation: e.target.value })}
+                                                className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-bold appearance-none text-slate-800"
+                                            >
+                                                <option value="">Seleccionar...</option>
+                                                {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                                            </select>
+                                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Destino</label>
+                                        <div className="relative">
+                                            <select
+                                                value={allocationForm.projectId}
+                                                onChange={(e) => setAllocationForm({ ...allocationForm, projectId: e.target.value })}
+                                                className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-bold appearance-none text-slate-800"
+                                            >
+                                                <option value="">Seleccionar...</option>
+                                                {dbProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </select>
+                                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Responsable</label>
+                                    <div className="relative">
+                                        <select
+                                            value={allocationForm.responsibleId}
+                                            onChange={e => setAllocationForm({ ...allocationForm, responsibleId: e.target.value })}
+                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium appearance-none text-slate-800"
+                                        >
+                                            <option value="">Seleccionar Personal...</option>
+                                            {dbStaff.map(s => <option key={s.id} value={s.id}>{s.name} - {s.role}</option>)}
+                                        </select>
+                                        <User size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">N° de Remito</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={allocationForm.remitoNumber}
+                                            onChange={(e) => setAllocationForm({ ...allocationForm, remitoNumber: e.target.value })}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-800 shadow-sm focus:ring-2 focus:ring-orange-500/20"
+                                            placeholder="R-0001-XXXXXXXX"
+                                        />
+                                        <FileText size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Fecha Emisión</label>
+                                        <input type="date" value={allocationForm.startDate} onChange={(e) => setAllocationForm({ ...allocationForm, startDate: e.target.value })} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 shadow-sm" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Fin Estimado</label>
+                                        <input type="date" value={allocationForm.endDate} onChange={(e) => setAllocationForm({ ...allocationForm, endDate: e.target.value })} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 shadow-sm" />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Observaciones</label>
+                                    <textarea
+                                        value={allocationForm.notes}
+                                        onChange={e => setAllocationForm({ ...allocationForm, notes: e.target.value })}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-medium text-slate-700 h-20"
+                                        placeholder="Detalles adicionales del remito..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 2. CHECK-IN / CHECK-OUT FORM VIEW
+        if (view === 'form') {
+            const isOut = formData.type === 'Salida';
+            const conformity = formData.conformity || 0;
+
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans animate-in slide-in-from-right-5 duration-300">
+                    <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between">
+                        <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50" aria-label="Cerrar formulario"><X size={24} /></button>
+                        <h1 className="font-bold text-lg text-slate-800">{isEditing ? 'Editar Registro' : `Nueva ${formData.type}`}</h1>
+                        <button onClick={handleSaveTransfer} className="text-orange-500 font-bold text-sm bg-orange-50 px-3 py-1.5 rounded-full flex items-center gap-1">
+                            <Save size={16} /> Guardar
+                        </button>
+                    </div>
+
+                    <div className="p-6 space-y-6">
+                        {/* General Info */}
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isOut ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                                    {isOut ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+                                </div>
+                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Datos del Movimiento</h3>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Activo</label>
+                                <div className="relative">
+                                    <select
+                                        value={selectedAssetId}
+                                        onChange={(e) => {
+                                            setSelectedAssetId(e.target.value);
+                                            const asset = dbAssets.find(a => a.id === e.target.value);
+                                            if (asset) setFormData({ ...formData, assetName: asset.name });
+                                        }}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 appearance-none"
+                                        aria-label="Seleccionar activo"
+                                    >
+                                        <option value="">Seleccionar Activo...</option>
+                                        {dbAssets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                    </select>
+                                    <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">N° de Remito</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={formData.remitoNumber}
+                                        onChange={e => setFormData({ ...formData, remitoNumber: e.target.value })}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800"
+                                        placeholder="Ej: R-0001-00001234"
+                                        aria-label="Ingresar número de remito"
+                                    />
+                                    <FileText size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Origen</label>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.fromLocation}
+                                            onChange={e => setFormData({ ...formData, fromLocation: e.target.value })}
+                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-xs font-bold appearance-none"
+                                            aria-label="Seleccionar ubicación de origen"
+                                        >
+                                            <option value="">Seleccionar...</option>
+                                            {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                                        </select>
+                                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Destino</label>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.toLocation}
+                                            onChange={e => setFormData({ ...formData, toLocation: e.target.value })}
+                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-xs font-bold appearance-none"
+                                            aria-label="Seleccionar ubicación de destino"
+                                        >
+                                            <option value="">Seleccionar...</option>
+                                            {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                                        </select>
+                                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Responsable del Movimiento</label>
+                                <div className="relative">
+                                    <select
+                                        value={formData.responsibleId}
+                                        onChange={e => setFormData({ ...formData, responsibleId: e.target.value })}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium appearance-none text-slate-800"
+                                        aria-label="Seleccionar responsable del movimiento"
+                                    >
+                                        <option value="">Seleccionar Personal...</option>
+                                        {dbStaff.map(s => <option key={s.id} value={s.id}>{s.name} - {s.role}</option>)}
+                                    </select>
+                                    <User size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Horómetro / Km</label>
+                                <input type="number" value={formData.meterReading} onChange={e => setFormData({ ...formData, meterReading: Number(e.target.value) })} className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800" aria-label="Ingresar horómetro o kilometraje actual" placeholder="Ej: 12500" />
+                            </div>
+                        </div>
+
+                        {/* Conformity Widget */}
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm flex items-center justify-between sticky top-20 z-10 border border-slate-100">
+                            <div>
+                                <p className="text-slate-500 text-xs font-bold uppercase mb-1">Evaluación Final</p>
+                                <h2 className="text-3xl font-black text-slate-800">{conformity}% <span className="text-sm font-medium text-slate-400">OK</span></h2>
+                            </div>
+                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner ${conformity >= 90 ? 'bg-green-100 text-green-600' : conformity >= 70 ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>
+                                {conformity >= 90 ? 'A' : conformity >= 70 ? 'B' : 'C'}
+                            </div>
+                        </div>
+
+                        {/* Checklist */}
+                        <div className="space-y-8">
+                            {Object.entries(groupedChecklist).map(([category, items]) => (
+                                <div key={category} className="space-y-3">
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wider px-2">
+                                        <span className="w-1.5 h-4 bg-orange-500 rounded-full"></span>{category}
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {items.map((item) => (
+                                            <div key={item.id} className={`bg-white rounded-2xl border p-4 shadow-sm space-y-3 transition-colors ${item.status === 'fail' ? 'border-red-200 ring-2 ring-red-500/10' : 'border-slate-100'}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <span className={`text-sm font-bold ${item.status === 'fail' ? 'text-red-700' : 'text-slate-700'}`}>{item.label}</span>
+                                                    <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+                                                        <button
+                                                            onClick={() => toggleChecklistItem(item.id, 'ok')}
+                                                            className={`p-2 rounded-lg transition-all ${item.status === 'ok' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                        >
+                                                            <CheckCircle2 size={20} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleChecklistItem(item.id, 'fail')}
+                                                            className={`p-2 rounded-lg transition-all ${item.status === 'fail' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                        >
+                                                            <XCircle size={20} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder={item.status === 'fail' ? "Describa la falla..." : "Observaciones..."}
+                                                    value={item.comment}
+                                                    onChange={(e) => updateChecklistComment(item.id, e.target.value)}
+                                                    className={`w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 ${item.status === 'fail' ? 'focus:ring-red-500/20 bg-red-50 placeholder:text-red-300' : 'focus:ring-orange-500/20'}`}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Photos & AI */}
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                <Camera size={18} className="text-orange-500" /> Registro Visual e IA
+                            </h3>
+                            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                                <div onClick={() => fileInputRef.current?.click()} className="w-20 h-20 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 shrink-0 cursor-pointer hover:border-orange-300 transition-colors">
+                                    <Plus size={24} />
+                                    <span className="text-[8px] font-bold uppercase mt-1">Agregar</span>
+                                </div>
+                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handlePhotoUpload} />
+                                {(formData.photos as string[] || []).map((photo, idx) => (
+                                    <div key={idx} className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 relative group">
+                                        <img src={photo} className="w-full h-full object-cover" alt="Inspección" />
+                                        <button onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {formData.photos && formData.photos.length > 0 && (
+                                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-2xl border border-indigo-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-bold text-indigo-800 flex items-center gap-1"><Sparkles size={14} /> Análisis IA Gemini</span>
+                                        {!isAnalyzing && (
+                                            <button onClick={handleAnalyzeAI} className="text-[10px] font-bold bg-white text-indigo-600 px-2 py-1 rounded-lg shadow-sm">
+                                                {formData.aiAnalysis ? 'Re-analizar' : 'Analizar Fotos'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {isAnalyzing ? (
+                                        <div className="flex items-center gap-2 text-xs text-indigo-500 py-2">
+                                            <Loader2 size={16} className="animate-spin" /> Analizando...
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-indigo-700 leading-relaxed">
+                                            {formData.aiAnalysis || "Pulsa analizar para obtener un reporte automático."}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 3. REMITO DOCUMENT VIEW (Detail)
+        if (view === 'detail' && formData) {
+            const remito = formData.remitoNumber;
+
+            const relatedAssets = useMemo(() => {
+                if (!remito) return [{
+                    id: formData.id || 'new',
+                    name: formData.assetName || 'Activo',
+                    type: formData.type || 'Movimiento',
+                    meter: formData.meterReading || 0,
+                    conformity: formData.conformity || 100,
+                    status: formData.status || 'Completado'
+                }];
+
+                const trans = transfers.filter(t => t.remitoNumber === remito).map(t => ({
+                    id: t.id,
+                    name: t.assetName,
+                    type: t.type,
+                    meter: t.meterReading,
+                    conformity: t.conformity,
+                    status: t.status
+                }));
+
+                const allocs = allocations.filter(a => a.remitoNumber === remito).map(a => ({
+                    id: a.id,
+                    name: a.assetName,
+                    type: 'Asignación',
+                    meter: 0,
+                    conformity: 100,
+                    status: a.status === 'Activo' ? 'Completado' : 'Pendiente'
+                }));
+
+                const combined = [...trans, ...allocs];
+                // Unique by asset name to avoid double showing if saved in both tables
+                return combined.filter((v, i, a) => a.findIndex(t => t.name === v.name) === i);
+            }, [remito, transfers, allocations, formData]);
+
+            const handlePrint = () => window.print();
+
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans animate-in fade-in duration-500 print:bg-white print:pb-0">
+                    <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between print:hidden">
+                        <button onClick={() => setView('list')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button>
+                        <h1 className="font-bold text-lg text-slate-800 uppercase tracking-tight">VISTA DE REMITO</h1>
+                        <button onClick={handlePrint} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg active:scale-95 transition-all">
+                            <Plus size={16} /> IMPRIMIR
+                        </button>
+                    </div>
+
+                    <div className="p-6 max-w-4xl mx-auto space-y-8 print:p-0">
+                        <div className="bg-white border-2 border-slate-200 rounded-[2.5rem] shadow-xl overflow-hidden print:border-none print:shadow-none print:rounded-none">
+                            <div className="p-10 border-b-4 border-slate-900 bg-slate-50/50 relative">
+                                <div className="absolute top-0 right-0 m-6 p-4 border-2 border-slate-900 rounded-2xl flex flex-col items-center">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Remito N°</span>
+                                    <span className="text-2xl font-black text-slate-900">{remito || 'S/N'}</span>
+                                </div>
+                                <div className="flex items-center gap-6 mb-8">
+                                    <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center text-white shadow-xl rotate-3">
+                                        <Truck size={40} strokeWidth={2.5} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase">SOWIC</h2>
+                                        <p className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase">Logística e Infraestructura</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-10">
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedencia / Origen</p>
+                                        <p className="text-lg font-black text-slate-800 flex items-center gap-2"><MapPin size={18} className="text-orange-500" /> {formData.fromLocation || 'Carga General'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Destino / Entrega</p>
+                                        <p className="text-lg font-black text-slate-800 flex items-center gap-2"><ArrowRight size={18} className="text-green-500" /> {formData.toLocation || formData.projectName || 'Obra'}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-8 pt-6 border-t border-slate-200 grid grid-cols-3 gap-4">
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase">Fecha de Emisión</p>
+                                        <p className="text-sm font-bold text-slate-700">{formData.date || formData.startDate}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase">Transporte / Responsable</p>
+                                        <p className="text-sm font-bold text-slate-700">{dbStaff.find(s => s.id === formData.responsibleId)?.name || 'Personal Sowic'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase">Estado Documento</p>
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${formData.status === 'Completado' || formData.status === 'Activo' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            {(formData.status || 'PROCESANDO').toUpperCase()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-10">
+                                <div className="bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest">
+                                            <tr>
+                                                <th className="px-6 py-4">Ítem / Activo</th>
+                                                <th className="px-6 py-4">Tipo Mov.</th>
+                                                <th className="px-6 py-4 text-center">Unidad / Km</th>
+                                                <th className="px-6 py-4 text-center">Inspección</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {relatedAssets.map((asset: any, idx) => (
+                                                <tr key={idx} className="bg-white">
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400"><Truck size={14} /></div>
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-800">{asset.name}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase">ID: {asset.id?.slice(0, 8)}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${asset.type === 'Salida' ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
+                                                            {asset.type.toUpperCase()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center text-sm font-black text-slate-600">{asset.meter || '-'}</td>
+                                                    <td className="px-6 py-5 text-center">
+                                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full ${getScoreColor(asset.conformity || 100)}`}>
+                                                            {asset.conformity || 100}% OK
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-10 grid grid-cols-2 gap-10">
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Observaciones Generales</h4>
+                                        <div className="p-6 bg-slate-50 rounded-3xl min-h-[120px] text-xs font-bold text-slate-600 italic leading-relaxed">
+                                            {formData.notes || "Sin observaciones adicionales registradas."}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Validez y Conformidad</h4>
+                                        <div className="p-6 border-2 border-dashed border-slate-100 rounded-3xl h-[120px] flex items-center justify-center text-center">
+                                            <div className="space-y-2 opacity-30">
+                                                <div className="w-12 h-1 bg-slate-200 mx-auto"></div>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase">Firma Receptor</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-8 bg-slate-900 flex justify-between items-center text-white/40">
+                                <p className="text-[9px] font-black tracking-widest">SOWIC APP SYSTEM • LOGISTICS MODULE v2.1</p>
+                                <p className="text-[9px] font-black tracking-widest">GENERADO EL {new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <style dangerouslySetInnerHTML={{ __html: `
+                        @media print {
+                            @page { margin: 1cm; }
+                            nav, .print\\:hidden, button { display: none !important; }
+                        }
+                    `}} />
+                </div>
+            );
+        }
+
+        // 4. MAIN MENU VIEW
+        if (view === 'menu') {
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen p-6 md:p-8 space-y-8 font-sans">
+                    <div className="flex justify-between items-center mb-2">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Logística</h1>
+                            <p className="text-sm text-slate-400 font-medium tracking-tight">Control de movimientos y activos</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-orange-500 p-0.5 shadow-lg shadow-orange-200 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=100" className="w-full h-full object-cover rounded-2xl" alt="Perfil" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-5">
+                        {canEdit && (
+                            <>
+                                <button onClick={() => { handleNewAllocation(); }} className="w-full bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group active:scale-[0.98] transition-all">
+                                    <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl group-hover:bg-orange-500/30 transition-colors"></div>
+                                    <div className="flex items-center gap-5 relative z-10">
+                                        <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg"><CalendarDays size={28} className="text-white" /></div>
+                                        <div className="text-left flex-1">
+                                            <h2 className="text-lg font-bold">Asignar Activo a Obra</h2>
+                                            <p className="text-xs text-white/50 font-medium uppercase tracking-widest">Crear Remito de Salida</p>
+                                        </div>
+                                        <ChevronRight size={20} className="text-white/20 group-hover:text-orange-500 transition-colors" />
+                                    </div>
+                                </button>
+
+                                <div className="grid grid-cols-2 gap-5">
+                                    <button onClick={() => handleOpenGate('Salida')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-orange-200">
+                                        <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform"><ArrowUpRight size={28} /></div>
+                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Salida (Gate)</span>
+                                    </button>
+                                    <button onClick={() => handleOpenGate('Ingreso')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-green-200">
+                                        <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform"><ArrowDownLeft size={28} /></div>
+                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Ingreso (Gate)</span>
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-5">
+                            <button onClick={() => setView('schedule')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-blue-200">
+                                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform"><History size={28} /></div>
+                                <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Cronograma</span>
+                            </button>
+                            <button onClick={() => setView('list')} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 group active:scale-95 transition-all hover:border-slate-300">
+                                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 group-hover:scale-110 transition-transform"><FileText size={28} /></div>
+                                <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Historial Remitos</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 5. SCHEDULE VIEW
+        if (view === 'schedule') {
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-20 font-sans animate-in fade-in duration-300">
+                    <div className="bg-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-sm border-b">
+                        <div className="flex items-center justify-between mb-3">
+                            <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button>
+                            <h1 className="font-bold text-lg text-slate-800 tracking-tight">Cronograma de Afectación</h1>
+                            {canEdit && <button onClick={handleNewAllocation} className="text-orange-500 p-2"><Plus size={24} /></button>}
+                        </div>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                           <button onClick={() => setProjectFilter('ALL')} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${projectFilter === 'ALL' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>Todas</button>
+                           {dbProjects.map(p => (
+                               <button key={p.id} onClick={() => setProjectFilter(p.name)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${projectFilter === p.name ? 'bg-orange-500 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>{p.name}</button>
+                           ))}
+                        </div>
+                    </div>
+                    <div className="p-4 space-y-6">
+                        {Object.entries(groupedScheduleByProject).map(([project, items]) => (
+                            <div key={project} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="bg-slate-900 px-6 py-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2"><MapPin size={14} className="text-orange-400" /><h2 className="text-[11px] font-black text-white uppercase tracking-widest">{project}</h2></div>
+                                    <span className="text-[9px] font-black text-slate-400 bg-white/10 px-2 py-0.5 rounded-full">{items.length} Act.</span>
+                                </div>
+                                <div className="divide-y divide-slate-50">
+                                    {items.map((item: any) => (
+                                        <div key={item.id} onClick={() => { setFormData({...item}); setView('detail'); }} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"><HardHat size={20} /></div>
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-slate-800">{item.assetName}</h3>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mt-1">Desde: {item.startDate || item.date}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={16} className="text-slate-200" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 6. HISTORY LIST VIEW
+        if (view === 'list') {
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans animate-in fade-in duration-300">
+                    <div className="bg-white px-6 pt-6 pb-4 sticky top-0 z-10 shadow-sm border-b space-y-4">
+                        <div className="flex justify-between items-center">
+                            <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button>
+                            <h1 className="font-bold text-lg text-slate-800 tracking-tight">Historial de Remitos</h1>
+                            <div className="w-10" />
+                        </div>
+                        <div className="flex bg-slate-100 p-1 rounded-2xl">
+                            <button onClick={() => setFilter('all')} className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Todos</button>
+                            <button onClick={() => setFilter('Pendiente')} className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${filter === 'Pendiente' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}>Pendientes</button>
+                            <button onClick={() => setFilter('Completado')} className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${filter === 'Completado' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}>Completados</button>
+                        </div>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        {Object.entries(groupedRemitosByProject).map(([project, groups]) => (
+                            <div key={project} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="bg-slate-900 px-6 py-2.5 flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{project}</span>
+                                    <span className="text-[9px] font-bold text-white/40">{groups.length} rem</span>
+                                </div>
+                                <div className="divide-y divide-slate-50">
+                                    {groups.map((remito: any) => (
+                                        <div key={remito.remitoNumber} onClick={() => { setFormData({...remito}); setView('detail'); }} className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${remito.status === 'Completado' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                    <FileText size={18} />
+                                                </div>
+                                                <div className="min-w-0 pr-4">
+                                                    <h3 className="text-sm font-bold text-slate-800 truncate">{remito.remitoNumber || 'Sin Número'}</h3>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{remito.date} • {remito.assetCount} Activos</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${remito.status === 'Completado' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{remito.status.toUpperCase()}</span>
+                                                <ChevronRight size={14} className="text-slate-200" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 7. GATE TASK LIST VIEW
+        if (view === 'gate') {
+            const pendingItems = transfers.filter(t => t.type === gateType && isChecklistPending(t));
+            return (
+                <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans animate-in slide-in-from-right-5">
+                    <div className="bg-white p-6 sticky top-0 z-10 shadow-sm flex items-center justify-between">
+                        <button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button>
+                        <h1 className="font-bold text-lg text-slate-800">Tareas de {gateType}</h1>
+                        <div className="w-10" />
+                    </div>
+                    <div className="p-6 space-y-6">
+                        <button onClick={() => handleOpenForm(gateType)} className={`w-full ${gateType === 'Salida' ? 'bg-orange-500' : 'bg-green-600'} text-white p-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest`}>
+                            <Plus size={20} /> Nueva {gateType}
+                        </button>
+                        <div className="space-y-4">
+                            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Checklists Pendientes</h2>
+                            {pendingItems.map(item => (
+                                <div key={item.id} onClick={() => handleEditTransfer(item)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-all">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0"><Truck size={20} /></div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-slate-800 text-sm truncate">{item.assetName}</h3>
+                                        <p className="text-[9px] font-black text-orange-600 uppercase mt-1">Remito: {item.remitoNumber || 'S/N'}</p>
+                                    </div>
+                                    <ChevronRight size={18} className="text-slate-200" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="bg-white min-h-screen flex items-center justify-center p-10 text-center">
+                <div className="space-y-4">
+                    <Truck size={48} className="mx-auto text-slate-100" />
+                    <h1 className="text-slate-400 font-bold uppercase tracking-widest text-sm">Vista no encontrada</h1>
+                    <button onClick={() => setView('menu')} className="bg-slate-900 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl active:scale-95 transition-all">Volver al Menú</button>
+                </div>
+            </div>
+        );
+    };
+
+export default Logistics;

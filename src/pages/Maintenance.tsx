@@ -140,9 +140,11 @@ const Maintenance: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         description: '',
         initialLog: '',
+
         maintenancePlanId: '',
         maintenanceEventId: '',
-        dueDate: ''
+        dueDate: '',
+        serviceRequestId: '' // New field for linkage
     });
 
     const [workOrders, setWorkOrders] = useState<any[]>([]);
@@ -264,7 +266,9 @@ const Maintenance: React.FC = () => {
                     initialLog: state.initialLog || '',
                     maintenancePlanId: state.maintenancePlanId || '',
                     maintenanceEventId: state.maintenanceEventId || '',
-                    dueDate: state.dueDate || ''
+
+                    dueDate: state.dueDate || '',
+                    serviceRequestId: state.serviceRequestId || ''
                 }));
                 setIsCreatingOT(true);
             } else if (state.action === 'editOT' && state.order) {
@@ -283,7 +287,8 @@ const Maintenance: React.FC = () => {
                     initialLog: '',
                     maintenancePlanId: order.maintenancePlanId || '',
                     maintenanceEventId: order.maintenanceEventId || '',
-                    dueDate: order.dueDate || ''
+                    dueDate: order.dueDate || '',
+                    serviceRequestId: '' // Add missing field
                 });
                 setIsCreatingOT(true);
             } else if (state.action === 'createChecklist' && state.assetId) {
@@ -472,7 +477,8 @@ const Maintenance: React.FC = () => {
                 initialLog: 'OT Creada automáticamente desde Inspección fallida.',
                 maintenancePlanId: '',
                 maintenanceEventId: '',
-                dueDate: ''
+                dueDate: '',
+                serviceRequestId: '' // Add missing field
             });
 
             // Cambiar de vista
@@ -607,6 +613,29 @@ const Maintenance: React.FC = () => {
                         .eq('id', otFormData.maintenanceEventId);
                 }
 
+                // Link back logic for Service Requests
+                if (otFormData.serviceRequestId && insertedData) {
+                    // Fetch existing request to get log
+                    const { data: sReq } = await supabase.from('service_requests').select('audit_log').eq('id', otFormData.serviceRequestId).single();
+                    if (sReq) {
+                        const currentLog = sReq.audit_log || [];
+                        const newEntry = {
+                            id: Math.random().toString(36).substr(2, 9),
+                            date: new Date().toLocaleString(),
+                            user: 'Sistema',
+                            action: 'Derivación a OT',
+                            details: `Generada Orden de Trabajo ${mockId}`
+                        };
+                        const updatedLog = [newEntry, ...currentLog];
+
+                        await supabase.from('service_requests').update({
+                            work_order_id: mockId,
+                            status: 'En Proceso', // Auto-update status
+                            audit_log: updatedLog
+                        }).eq('id', otFormData.serviceRequestId);
+                    }
+                }
+
                 let alertMsg = `Orden de Trabajo ${mockId} creada exitosamente.`;
                 if (otFormData.initialLog) alertMsg += "\n\nSe ha registrado automáticamente una nota en la bitácora.";
                 alert(alertMsg);
@@ -633,6 +662,7 @@ const Maintenance: React.FC = () => {
                 maintenancePlanId: '',
                 maintenanceEventId: '',
                 dueDate: '',
+                serviceRequestId: ''
             });
 
         } catch (err: any) {
@@ -656,7 +686,8 @@ const Maintenance: React.FC = () => {
             initialLog: '',
             maintenancePlanId: order.maintenancePlanId || '',
             maintenanceEventId: order.maintenanceEventId || '',
-            dueDate: order.dueDate || ''
+            dueDate: order.dueDate || '',
+            serviceRequestId: ''
         });
         setIsCreatingOT(true);
     };

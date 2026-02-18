@@ -312,6 +312,21 @@ export interface Provider {
   reviews?: ProviderReview[];
 }
 
+export interface ServiceRequestLogEntry {
+  id: string;
+  date: string;
+  user: string;
+  action: string;
+  details?: string;
+}
+
+export interface ServiceRequestConformity {
+  user: string;
+  date: string;
+  conformity: boolean; // true = Conforme, false = No Conforme
+  comment?: string;
+}
+
 export interface ServiceRequest {
   id: string;
   title: string;
@@ -324,6 +339,9 @@ export interface ServiceRequest {
   relatedInventoryId?: string;
   relatedAssetId?: string; // Nuevo campo para vincular activo
   workOrderId?: string; // ID de la OT generada si aplica
+  auditLog: ServiceRequestLogEntry[]; // Bitácora de movimientos
+  closureConformity?: ServiceRequestConformity; // Conformidad de cierre
+  createdAt?: string; // Fecha de creación exacta
 }
 
 export interface Transfer {
@@ -332,8 +350,15 @@ export interface Transfer {
   fromLocation: string;
   toLocation: string;
   date: string;
-  status: 'En Tránsito' | 'Completado';
+  status: 'Pendiente' | 'Programado' | 'En Tránsito' | 'Completado' | 'Cancelado';
   meterReading: number;
+  remitoNumber?: string;
+  checklist?: ChecklistItem[];
+  photos?: string[];
+  notes?: string;
+  responsibleId?: string;
+  conformity?: number;
+  aiAnalysis?: string;
 }
 
 export interface AssetAllocation {
@@ -345,4 +370,5 @@ export interface AssetAllocation {
   startDate: string;
   endDate: string;
   status: 'Activo' | 'Programado' | 'Finalizado';
+  remitoNumber?: string;
 }

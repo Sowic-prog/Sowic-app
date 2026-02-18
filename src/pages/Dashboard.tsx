@@ -5,7 +5,7 @@ import {
     Bell, Search, QrCode, ClipboardList, TrendingUp, AlertTriangle,
     Package, Users, ChevronRight, Truck, MoreHorizontal, Wrench,
     Bot, Handshake, LayoutGrid, HardHat, LifeBuoy, X, Folder, User, Wrench as WrenchIcon, Tag, Box,
-    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History, Grid, BarChart3, Calendar
+    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History, Grid, BarChart3, Calendar, HelpCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -514,9 +514,14 @@ const Dashboard: React.FC = () => {
             {/* KPI Row and Main Navigation... */}
             <div className="px-6 -mt-8 space-y-8 pb-10">
                 <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50">
-                        <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-2">
-                            <Bot size={18} />
+                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
+                        <div className="flex justify-between items-start">
+                            <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-2">
+                                <Bot size={18} />
+                            </div>
+                            <div title="Total de activos registrados en la plataforma.">
+                                <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-orange-500 transition-colors" />
+                            </div>
                         </div>
                         <div>
                             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Activos</p>
@@ -526,9 +531,14 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50">
-                        <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 mb-2">
-                            <WrenchIcon size={18} />
+                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
+                        <div className="flex justify-between items-start">
+                            <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 mb-2">
+                                <WrenchIcon size={18} />
+                            </div>
+                            <div title="Órdenes de trabajo actualmente en curso.">
+                                <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-slate-500 transition-colors" />
+                            </div>
                         </div>
                         <div>
                             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Mantenimiento</p>

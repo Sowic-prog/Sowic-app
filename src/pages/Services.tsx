@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 import {
     LifeBuoy, Clock, MapPin, AlertCircle, Plus, Filter, Search,
     ChevronLeft, Save, X, Edit3, Trash2, CheckCircle2, AlertTriangle,
-    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2, Truck, HardHat, Box, Laptop, Armchair
+    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2, Truck, HardHat, Box, Laptop, Armchair, History, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ServiceRequest, Asset, Project } from '../types';
+import { ServiceRequest, Asset, Project, ServiceRequestLogEntry, ServiceRequestConformity } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -43,7 +43,10 @@ const mapServiceRequestFromDB = (db: any): ServiceRequest => ({
     slaDeadline: db.sla_deadline,
     description: db.description,
     relatedAssetId: db.related_asset_id,
-    workOrderId: db.work_order_id
+    workOrderId: db.work_order_id,
+    auditLog: db.audit_log || [],
+    closureConformity: db.closure_conformity || undefined,
+    createdAt: db.created_at // Map created_at
 });
 
 const mapServiceRequestToDB = (req: Partial<ServiceRequest>) => ({
@@ -54,12 +57,14 @@ const mapServiceRequestToDB = (req: Partial<ServiceRequest>) => ({
     location: req.location,
     sla_deadline: req.slaDeadline,
     description: req.description,
-    related_asset_id: req.relatedAssetId,
-    work_order_id: req.workOrderId
+    related_asset_id: req.relatedAssetId || null,
+    work_order_id: req.workOrderId || null,
+    audit_log: req.auditLog,
+    closure_conformity: req.closureConformity || null
 });
 
 const Services: React.FC = () => {
-    const { checkPermission } = useAuth();
+    const { user, checkPermission } = useAuth();
     const canEdit = checkPermission('/services', 'edit');
     const navigate = useNavigate();
     const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -79,9 +84,38 @@ const Services: React.FC = () => {
         status: 'Pendiente',
         location: '',
         description: '',
-        slaDeadline: '48hs',
-        relatedAssetId: ''
+
+        slaDeadline: '48hs', // Default for Medium
+        relatedAssetId: '',
+        auditLog: []
     });
+
+    // Helper functions
+    const getSLAByPriority = (priority: string) => {
+        switch (priority) {
+            case 'Crítica': return '4hs';
+            case 'Alta': return '24hs';
+            case 'Media': return '48hs';
+            case 'Baja': return '72hs';
+            default: return '48hs';
+        }
+    };
+
+    const addLogEntry = (currentLog: ServiceRequestLogEntry[], action: string, details?: string): ServiceRequestLogEntry[] => {
+        const isSuperAdmin = user?.role === 'SuperAdmin' || (user?.auth as any)?.role === 'SuperAdmin';
+        const userLabel = user?.email ? (isSuperAdmin ? `${user.email} (SuperAdmin)` : user.email) : 'Sistema';
+
+        return [
+            {
+                id: Math.random().toString(36).substr(2, 9),
+                date: new Date().toLocaleString(),
+                user: userLabel,
+                action,
+                details
+            },
+            ...(currentLog || [])
+        ];
+    };
 
     useEffect(() => {
         fetchData();
@@ -179,8 +213,10 @@ const Services: React.FC = () => {
             status: 'Pendiente',
             location: '',
             description: '',
+
             slaDeadline: '48hs',
-            relatedAssetId: ''
+            relatedAssetId: '',
+            auditLog: []
         });
         setSelectedRequest(null);
         setView('form');
@@ -201,22 +237,49 @@ const Services: React.FC = () => {
         setLoading(true);
         try {
             if (selectedRequest) {
+                // Update Logic with Audit Log
+                const updatedLog = addLogEntry(
+                    formData.auditLog || [],
+                    'Edición',
+                    `Modificado por ${user?.email}`
+                );
+
+                // Track status change specifically
+                if (formData.status !== selectedRequest.status) {
+                    updatedLog.unshift({
+                        id: Math.random().toString(36).substr(2, 9),
+                        date: new Date().toLocaleString(),
+                        user: user?.email || 'Sistema',
+                        action: 'Cambio de Estado',
+                        details: `De ${selectedRequest.status} a ${formData.status}`
+                    });
+                }
+
+                const payload = {
+                    ...formData,
+                    auditLog: updatedLog
+                };
+
                 const { error } = await supabase
                     .from('service_requests')
-                    .update(mapServiceRequestToDB(formData))
+                    .update(mapServiceRequestToDB(payload))
                     .eq('id', selectedRequest.id);
                 if (error) throw error;
             } else {
+                // Create Logic with Initial Log
+                const initialLog = addLogEntry([], 'Creación', `Solicitud creada por ${user?.email}`);
+                const payload = { ...formData, auditLog: initialLog };
+
                 const { error } = await supabase
                     .from('service_requests')
-                    .insert([mapServiceRequestToDB(formData)]);
+                    .insert([mapServiceRequestToDB(payload)]);
                 if (error) throw error;
             }
             await fetchData();
             setView('list');
         } catch (err) {
             console.error('Error saving request:', err);
-            alert('Error al guardar la solicitud');
+            alert('Error al guardar la solicitud: ' + (err as any).message);
         } finally {
             setLoading(false);
         }
@@ -252,15 +315,67 @@ const Services: React.FC = () => {
         navigate('/maintenance', {
             state: {
                 action: 'createOT',
+                serviceRequestId: selectedRequest.id,
                 title: `Derivado de Solicitud ${selectedRequest.id}: ${selectedRequest.title}`,
                 description: `SOLICITUD DE SERVICIO #${selectedRequest.id}\nCategoría: ${selectedRequest.category}\nUbicación: ${selectedRequest.location}\n\nDetalle del problema:\n${selectedRequest.description}`,
                 priority: selectedRequest.priority,
                 assetId: relatedAsset ? relatedAsset.id : undefined,
                 assetName: relatedAsset ? relatedAsset.name : undefined,
+
                 internalId: relatedAsset ? relatedAsset.internalId : undefined,
             }
         });
+
+        // Log the WO generation (Optimistic update on local state, actual save happens in OT creation but we should track intent here or let backend handle it.
+        // For now, let's assume the user completes the action on the other screen.
+        // Ideally, we would add a log here if we were doing an async process, but navigation changes context.)
+        // A better approach is to update the log when the ID is linked back.
+        // For this demo, let's just log "Derivación a OT" locally if we were staying.
     };
+
+    const handleConformity = async (isConforme: boolean, comment: string) => {
+        if (!selectedRequest) return;
+
+        try {
+            const conformity: ServiceRequestConformity = {
+                user: user?.email || 'Usuario',
+                date: new Date().toLocaleString(),
+                conformity: isConforme,
+                comment
+            };
+
+            const updatedLog = addLogEntry(
+                selectedRequest.auditLog || [],
+                'Conformidad de Cierre',
+                `${isConforme ? 'Aprobado' : 'Rechazado'}: ${comment}`
+            );
+
+            const { error } = await supabase
+                .from('service_requests')
+                .update(mapServiceRequestToDB({
+                    ...selectedRequest,
+                    closureConformity: conformity,
+                    auditLog: updatedLog
+                }))
+                .eq('id', selectedRequest.id);
+
+            if (error) throw error;
+
+            await fetchData();
+            alert("Conformidad registrada exitosamente.");
+            // Update local state to reflect change immediately if needed, mainly handled by fetchData
+            setSelectedRequest({
+                ...selectedRequest,
+                closureConformity: conformity,
+                auditLog: updatedLog
+            });
+
+        } catch (e) {
+            console.error("Error saving conformity:", e);
+            alert("Error al registrar conformidad.");
+        }
+    };
+
 
     // --- VIEWS ---
 
@@ -377,7 +492,14 @@ const Services: React.FC = () => {
                                 <select
                                     value={formData.priority}
                                     aria-label="Prioridad"
-                                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                                    onChange={(e) => {
+                                        const newPriority = e.target.value;
+                                        setFormData({
+                                            ...formData,
+                                            priority: newPriority as any,
+                                            slaDeadline: getSLAByPriority(newPriority)
+                                        });
+                                    }}
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-700 appearance-none"
                                 >
                                     <option value="Baja">Baja</option>
@@ -439,9 +561,8 @@ const Services: React.FC = () => {
                                 <input
                                     type="text"
                                     value={formData.slaDeadline}
-                                    onChange={(e) => setFormData({ ...formData, slaDeadline: e.target.value })}
-                                    placeholder="Ej. 24hs"
-                                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium"
+                                    readOnly // SLA is now auto-calculated
+                                    className="w-full p-4 bg-slate-100 border-none rounded-2xl text-sm font-medium text-slate-500 cursor-not-allowed"
                                 />
                             </div>
                         </div>
@@ -565,6 +686,85 @@ const Services: React.FC = () => {
                         </p>
                     </div>
 
+                    {/* Bitácora (Audit Log) */}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <History size={18} className="text-orange-500" /> Bitácora de Actividad
+                        </h3>
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {selectedRequest.auditLog && selectedRequest.auditLog.length > 0 ? (
+                                selectedRequest.auditLog.map((log) => (
+                                    <div key={log.id} className="relative pl-4 border-l-2 border-slate-100 pb-1">
+                                        <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-slate-300"></div>
+                                        <div className="flex justify-between items-start">
+                                            <span className="text-xs font-bold text-slate-700">{log.action}</span>
+                                            <span className="text-[10px] text-slate-400">{log.date}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-0.5">{log.details || 'Sin detalles'}</p>
+                                        <p className="text-[10px] text-slate-400 mt-1 italic">Por: {log.user}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic text-center py-4">No hay actividad registrada.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Conformidad de Cierre */}
+                    {(selectedRequest.status === 'Resuelto' || selectedRequest.closureConformity) && (
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <CheckCircle2 size={18} className="text-green-500" /> Conformidad de Cierre
+                            </h3>
+
+                            {selectedRequest.closureConformity ? (
+                                <div className={`p-4 rounded-xl border ${selectedRequest.closureConformity.conformity ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        {selectedRequest.closureConformity.conformity ? (
+                                            <ThumbsUp size={16} className="text-green-600" />
+                                        ) : (
+                                            <ThumbsDown size={16} className="text-red-600" />
+                                        )}
+                                        <span className={`text-sm font-bold ${selectedRequest.closureConformity.conformity ? 'text-green-700' : 'text-red-700'}`}>
+                                            {selectedRequest.closureConformity.conformity ? 'Conforme' : 'No Conforme'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-600 mb-2 italic">"{selectedRequest.closureConformity.comment}"</p>
+                                    <div className="flex justify-between text-[10px] text-slate-400">
+                                        <span>{selectedRequest.closureConformity.user}</span>
+                                        <span>{selectedRequest.closureConformity.date}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-sm text-slate-600 mb-4">
+                                        Por favor, confirma si estás satisfecho con la resolución de esta solicitud.
+                                    </p>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => {
+                                                const comment = prompt("Comentarios adicionales (opcional):", "");
+                                                if (comment !== null) handleConformity(true, comment);
+                                            }}
+                                            className="flex-1 bg-green-50 text-green-700 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-green-100 transition-colors"
+                                        >
+                                            <ThumbsUp size={16} /> Conforme
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const comment = prompt("Motivo de la no conformidad:", "");
+                                                if (comment) handleConformity(false, comment);
+                                            }}
+                                            className="flex-1 bg-red-50 text-red-700 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
+                                        >
+                                            <ThumbsDown size={16} /> No Conforme
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Meta Info */}
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -577,34 +777,100 @@ const Services: React.FC = () => {
                             </div>
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase block">Reportado</span>
-                                <span className="text-sm font-black text-slate-800">Hoy</span>
+                                <span className="text-sm font-black text-slate-800">
+                                    {selectedRequest.createdAt
+                                        ? new Date(selectedRequest.createdAt).toLocaleString()
+                                        : 'Fecha desconocida'}
+                                </span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Resolver Action */}
-                    {selectedRequest.status !== 'Resuelto' && canEdit && (
-                        <button
-                            onClick={async () => {
-                                try {
-                                    const { error } = await supabase
-                                        .from('service_requests')
-                                        .update({ status: 'Resuelto' })
-                                        .eq('id', selectedRequest.id);
-                                    if (error) throw error;
-                                    await fetchData();
-                                    setSelectedRequest({ ...selectedRequest, status: 'Resuelto' as any });
-                                } catch (err) {
-                                    console.error('Error solving request:', err);
-                                }
-                            }}
-                            className="w-full bg-green-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-green-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                        >
-                            <CheckCircle2 size={20} /> Marcar como Resuelto
-                        </button>
+                    {/* Action Buttons for Pendiente status */}
+                    {selectedRequest.status === 'Pendiente' && canEdit && (
+                        <div className="mt-6">
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const updatedLog = addLogEntry(
+                                            selectedRequest.auditLog || [],
+                                            'Gestión Iniciada',
+                                            `Gestión tomada por ${user?.email || 'Sistema'}`
+                                        );
+
+                                        // Optimistic update
+                                        const updatedRequest = {
+                                            ...selectedRequest,
+                                            status: 'En Proceso',
+                                            auditLog: updatedLog
+                                        } as ServiceRequest;
+
+                                        setSelectedRequest(updatedRequest);
+
+                                        const { error } = await supabase
+                                            .from('service_requests')
+                                            .update(mapServiceRequestToDB(updatedRequest))
+                                            .eq('id', selectedRequest.id);
+
+                                        if (error) throw error;
+                                        await fetchData();
+
+                                    } catch (err) {
+                                        console.error('Error starting management:', err);
+                                        alert('Error al iniciar gestión: ' + (err as any).message);
+                                    }
+                                }}
+                                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-blue-700"
+                            >
+                                <Clock size={20} /> Tomar Gestión
+                            </button>
+                        </div>
                     )}
                 </div>
+
+                {/* Resolver Action */}
+                {selectedRequest.status !== 'Resuelto' && canEdit && (
+                    <button
+                        onClick={async () => {
+                            try {
+                                const updatedLog = addLogEntry(
+                                    selectedRequest.auditLog || [],
+                                    'Resolución',
+                                    `Marcado como resuelto por ${user?.email}`
+                                );
+                                updatedLog.unshift({
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    date: new Date().toLocaleString(),
+                                    user: user?.email || 'Sistema',
+                                    action: 'Cambio de Estado',
+                                    details: `De ${selectedRequest.status} a Resuelto`
+                                });
+
+                                const { error } = await supabase
+                                    .from('service_requests')
+                                    .update({
+                                        status: 'Resuelto',
+                                        audit_log: updatedLog
+                                    })
+                                    .eq('id', selectedRequest.id);
+                                if (error) throw error;
+                                await fetchData();
+                                setSelectedRequest({
+                                    ...selectedRequest,
+                                    status: 'Resuelto',
+                                    auditLog: updatedLog
+                                });
+                            } catch (err) {
+                                console.error('Error solving request:', err);
+                            }
+                        }}
+                        className="w-full bg-green-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-green-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                    >
+                        <CheckCircle2 size={20} /> Marcar como Resuelto
+                    </button>
+                )}
             </div>
+
         );
     }
 
