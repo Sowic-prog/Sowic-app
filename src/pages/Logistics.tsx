@@ -160,9 +160,13 @@ const Logistics: React.FC = () => {
 
     // combinedHistory removed as it is no longer used for the main logic
 
+
     const uniqueRemitos = useMemo(() => {
         const remitosMap: Record<string, any> = {};
         const individualItems: any[] = [];
+
+        // Helper to get code
+        const getCode = (id: string) => dbAssets.find(a => a.id === id)?.internalId || 'S/ID';
 
         // 1. Process Allocations (Primary Source for Project Remitos)
         allocations.forEach(alloc => {
@@ -183,10 +187,13 @@ const Logistics: React.FC = () => {
                     // These will be filled by matching transfers if found
                     responsibleId: '',
                     notes: '',
-                    isAllocation: true
+                    isAllocation: true,
+                    // Store first asset code for preview
+                    previewCode: getCode(alloc.assetId)
                 };
             }
-            remitosMap[alloc.remitoNumber].assetCount++;
+            // If multiple assets, maybe show "VHL-01 + 3 más" logic in UI, for now just keep first or concat?
+            // Let's keep the first one found as a preview or "Various"
         });
 
         // 2. Process Transfers (Enrich Allocations + Handle Manual Remitos)
@@ -206,14 +213,20 @@ const Logistics: React.FC = () => {
                             ...trans,
                             displayType: trans.type,
                             assetCount: 0,
-                            isAllocation: false
+                            isAllocation: false,
+                            previewCode: getCode(trans.assetId)
                         };
                     }
-                    remitosMap[rNum!].assetCount++;
                 }
+                remitosMap[rNum!].assetCount++;
             } else {
                 // Standalone Transfer
-                individualItems.push({ ...trans, displayType: trans.type, assetCount: 1 });
+                individualItems.push({
+                    ...trans,
+                    displayType: trans.type,
+                    assetCount: 1,
+                    previewCode: getCode(trans.assetId)
+                });
             }
         });
 
@@ -221,7 +234,7 @@ const Logistics: React.FC = () => {
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
         return all;
-    }, [allocations, transfers]);
+    }, [allocations, transfers, dbAssets]);
 
     const groupedRemitos = useMemo(() => {
         const filtered = uniqueRemitos.filter(r => {
@@ -238,11 +251,14 @@ const Logistics: React.FC = () => {
         return groups;
     }, [uniqueRemitos, filter, projectFilter]);
 
+
     const relatedAssets = useMemo(() => {
         const remito = formData?.remitoNumber;
         if (!remito || remito === 'S/N') {
+            const assetData = dbAssets.find(a => a.id === formData.assetId);
             return formData?.assetName ? [{
                 id: formData.assetId || 'new',
+                code: assetData?.internalId || 'S/ID',
                 name: formData.assetName,
                 type: formData.type || 'Movimiento',
                 meter: formData.meterReading || 0,
@@ -253,25 +269,33 @@ const Logistics: React.FC = () => {
         // Gather all assets associated with this Remito Number
         const fromAllocations = allocations
             .filter(a => a.remitoNumber === remito)
-            .map(a => ({
-                id: a.assetId,
-                name: a.assetName,
-                type: 'Asignación' as const,
-                meter: 0,
-                conformity: 100, // Allocations are assumed to be 100% unless checked otherwise relative to transfer
-                status: a.status as any
-            }));
+            .map(a => {
+                const assetData = dbAssets.find(db => db.id === a.assetId);
+                return {
+                    id: a.assetId,
+                    code: assetData?.internalId || 'S/ID',
+                    name: a.assetName,
+                    type: 'Asignación' as const,
+                    meter: 0,
+                    conformity: 100,
+                    status: a.status as any
+                };
+            });
 
         const fromTransfers = transfers
             .filter(t => t.remitoNumber === remito)
-            .map(t => ({
-                id: t.assetId,
-                name: t.assetName,
-                type: t.type,
-                meter: t.meterReading,
-                conformity: t.conformity || 100,
-                status: t.status
-            }));
+            .map(t => {
+                const assetData = dbAssets.find(db => db.id === t.assetId);
+                return {
+                    id: t.assetId,
+                    code: assetData?.internalId || 'S/ID',
+                    name: t.assetName,
+                    type: t.type,
+                    meter: t.meterReading,
+                    conformity: t.conformity || 100,
+                    status: t.status
+                };
+            });
 
         // Merge, preferring Transfer data (real inspection) over Allocation data (plan)
         const combined = [...fromTransfers];
@@ -282,7 +306,7 @@ const Logistics: React.FC = () => {
         });
 
         return combined;
-    }, [formData?.remitoNumber, formData?.assetName, transfers, allocations]);
+    }, [formData?.remitoNumber, formData?.assetName, transfers, allocations, dbAssets]);
 
     const availableLocations = useMemo(() => {
         return ['Pañol Central', 'Taller Central', ...dbProjects.map(p => p.name)];
@@ -390,6 +414,56 @@ const Logistics: React.FC = () => {
     const handleOpenGate = (type: 'Ingreso' | 'Salida') => {
         setGateType(type);
         setView('gate');
+    };
+
+
+    const handleDeleteRemito = async () => {
+        if (!formData.remitoNumber || formData.remitoNumber === 'S/N') return alert("No se puede eliminar un remito sin número.");
+        if (!window.confirm("¿Estás seguro de que deseas eliminar este Remito? \n\nESTA ACCIÓN ES IRREVERSIBLE.\n\nTodos los activos asociados volverán a estado 'Disponible' y ubicación 'Pañol Central'.")) return;
+
+        try {
+            // 1. Identify assets and revert status
+            const assetIdsToRevert = [
+                ...transfers.filter(t => t.remitoNumber === formData.remitoNumber).map(t => ({ id: t.assetId, name: t.assetName })),
+                ...allocations.filter(a => a.remitoNumber === formData.remitoNumber).map(a => ({ id: a.assetId, name: a.assetName }))
+            ];
+
+            // Deduplicate
+            const uniqueAssets = Array.from(new Set(assetIdsToRevert.map(a => a.id)))
+                .map(id => assetIdsToRevert.find(a => a.id === id)!);
+
+            for (const asset of uniqueAssets) {
+                // Determine table based on asset type is tricky without the type here, 
+                // but we can search in dbAssets which has the type.
+                const fullAsset = dbAssets.find(a => a.id === asset.id);
+                if (fullAsset) {
+                    let table = 'assets';
+                    if (fullAsset.type === 'Rodados') table = 'vehicles';
+                    else if (fullAsset.type === 'Maquinaria') table = 'machinery';
+                    else if (fullAsset.type === 'Mobiliario') table = 'mobiliario';
+                    else if (fullAsset.type === 'Equipos de Informática') table = 'it_equipment';
+                    else if (fullAsset.type === 'Instalaciones en infraestructuras') table = 'infrastructures';
+
+                    await supabase.from(table).update({ location: 'Pañol Central', status: 'Disponible' }).eq('id', asset.id);
+                }
+            }
+
+            // 2. Delete Allocations
+            const { error: allocError } = await supabase.from('asset_allocations').delete().eq('remito_number', formData.remitoNumber);
+            if (allocError) throw allocError;
+
+            // 3. Delete Transfers
+            const { error: transError } = await supabase.from('asset_transfers').delete().eq('remito_number', formData.remitoNumber);
+            if (transError) throw transError;
+
+            alert("Remito eliminado y activos restaurados a Pañol Central.");
+            loadData();
+            setView('list');
+
+        } catch (e: any) {
+            console.error(e);
+            alert("Error al eliminar remito: " + e.message);
+        }
     };
 
     // --- VIEWS ---
@@ -546,7 +620,12 @@ const Logistics: React.FC = () => {
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between print:hidden">
                     <button onClick={() => setView('list')} className="text-slate-600 p-2"><ChevronLeft size={24} /></button>
                     <h1 className="font-black text-lg text-slate-800 uppercase italic">DOCUMENTO DE REMITO</h1>
-                    <button onClick={() => window.print()} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black shadow-lg shadow-slate-200">IMPRIMIR</button>
+                    <div className="flex gap-2">
+                        {canEdit && (
+                            <button onClick={handleDeleteRemito} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors">ELIMINAR</button>
+                        )}
+                        <button onClick={() => window.print()} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black shadow-lg shadow-slate-200">IMPRIMIR</button>
+                    </div>
                 </div>
                 <div className="p-6 max-w-4xl mx-auto print:p-0">
                     <div className="bg-white border-2 border-slate-200 rounded-[3rem] shadow-2xl overflow-hidden print:border-none print:shadow-none print:rounded-none">
@@ -576,12 +655,20 @@ const Logistics: React.FC = () => {
                             <div className="rounded-[2rem] overflow-hidden border-2 border-slate-100">
                                 <table className="w-full text-left">
                                     <thead className="bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.1em]">
-                                        <tr><th className="px-8 py-5">Descripción de Activos</th><th className="px-8 py-5 text-center">Estado</th><th className="px-8 py-5 text-right">Firma</th></tr>
+                                        <tr><th className="px-8 py-5">Código</th><th className="px-8 py-5">Descripción de Activos</th><th className="px-8 py-5 text-center">Estado</th><th className="px-8 py-5 text-right">Firma</th></tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {relatedAssets.map((asset, idx) => (
                                             <tr key={idx} className="bg-white hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-8 py-6"><div><p className="text-base font-black text-slate-800">{asset.name}</p><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Inspección OK: {asset.conformity || 100}%</p></div></td>
+                                                <td className="px-8 py-6">
+                                                    <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider">{asset.code}</span>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div>
+                                                        <p className="text-base font-black text-slate-800">{asset.name}</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Inspección OK: {asset.conformity || 100}%</p>
+                                                    </div>
+                                                </td>
                                                 <td className="px-8 py-6 text-center"><span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${getScoreColor(asset.conformity || 100)}`}>CONFORME</span></td>
                                                 <td className="px-8 py-6 text-right"><div className="w-32 h-1 bg-slate-50 ml-auto rounded-full"></div></td>
                                             </tr>
@@ -638,7 +725,7 @@ const Logistics: React.FC = () => {
         return (
             <div className="bg-[#F8F9FA] min-h-screen pb-24 animate-in fade-in duration-300">
                 <div className="bg-white px-8 pt-8 pb-6 sticky top-0 z-10 shadow-sm border-b space-y-6">
-                    <div className="flex justify-between items-center"><button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button><h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">Historial de Remitos</h1><div className="w-12" /></div>
+                    <div className="flex justify-between items-center"><button onClick={() => setView('menu')} className="text-slate-600 p-2 -ml-2 rounded-full hover:bg-slate-50"><ChevronLeft size={24} /></button><h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">Historial de Remitos <span className="text-xs text-orange-500 not-italic tracking-normal bg-orange-50 px-2 py-1 rounded-lg">v2.4</span></h1><div className="w-12" /></div>
                     <div className="flex bg-slate-100 p-1 rounded-2xl">
                         <button onClick={() => setFilter('all')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${filter === 'all' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400'}`}>Todos</button>
                         <button onClick={() => setFilter('Pendiente')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${filter === 'Pendiente' ? 'bg-white text-orange-600 shadow-lg' : 'text-slate-400'}`}>Pendientes</button>
@@ -655,7 +742,11 @@ const Logistics: React.FC = () => {
                                         <div className="flex items-center gap-5">
                                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${remito.status === 'Completado' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}><FileText size={24} /></div>
                                             <div>
-                                                <div className="flex items-center gap-2"><h3 className="font-black text-slate-900 text-lg tracking-tighter uppercase italic">{remito.remitoNumber || 'SIN NUMERO'}</h3>{remito.displayType === 'Asignación' && <span className="text-[8px] font-black bg-slate-900 text-white px-2 py-0.5 rounded-lg uppercase tracking-widest">Obra</span>}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-black text-slate-900 text-lg tracking-tighter uppercase italic">{remito.remitoNumber || 'SIN NUMERO'}</h3>
+                                                    {remito.displayType === 'Asignación' && <span className="text-[8px] font-black bg-slate-900 text-white px-2 py-0.5 rounded-lg uppercase tracking-widest">Obra</span>}
+                                                    {remito.previewCode && <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg uppercase tracking-widest">{remito.previewCode}</span>}
+                                                </div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{remito.date} • {remito.assetCount} {remito.assetCount === 1 ? 'Activo' : 'Activos'}</p>
                                             </div>
                                         </div>
