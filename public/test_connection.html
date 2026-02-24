@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Connection Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .log { background: #f0f0f0; padding: 1rem; border-radius: 8px; font-family: monospace; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Supabase Connection Diagnostic</h1>
+    <div id="status">Connecting...</div>
+    <div id="results" class="log"></div>
+
+    <script>
+        // CONFIGURATION (Injected from .env knowledge)
+        const SUPABASE_URL = 'https://huzmjdmueyrhlucfpaun.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1em1qZG11ZXlyaGx1Y2ZwYXVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4NTAxMTYsImV4cCI6MjA4NDQyNjExNn0.9wRf8_UlBTF4GPutwzDYbf0kmZnzgPmkxYRsiy4VyYM';
+
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+
+        function log(msg, isError = false) {
+            const div = document.createElement('div');
+            div.textContent = (isError ? '❌ ' : '✅ ') + msg;
+            if (isError) div.style.color = 'red';
+            resultsEl.appendChild(div);
+        }
+
+        async function testConnection() {
+            try {
+                const { createClient } = supabase;
+                const client = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+                log(`Client initialized with URL: ${SUPABASE_URL}`);
+
+                // Test 1: Fetch from 'projects'
+                const { data: projects, error: projError } = await client.from('projects').select('*').limit(1);
+                
+                if (projError) throw new Error(`Projects Fetch Error: ${projError.message}`);
+                log(`Successfully connected! Found ${projects?.length ?? 0} project(s).`);
+                if(projects?.length > 0) log(`Sample Project: ${projects[0].name}`);
+
+                // Test 2: Fetch from 'inventory'
+                const { data: inventory, error: invError } = await client.from('inventory').select('*').limit(1);
+                
+                if (invError) throw new Error(`Inventory Fetch Error: ${invError.message}`);
+                log(`Inventory table accessible. Found ${inventory?.length ?? 0} item(s).`);
+
+                statusEl.textContent = "SUCCESS: Connection Active";
+                statusEl.className = "success";
+
+            } catch (err) {
+                console.error(err);
+                log(err.message, true);
+                statusEl.textContent = "FAILED: Connection Issue";
+                statusEl.className = "error";
+            }
+        }
+
+        testConnection();
+    </script>
+</body>
+</html>

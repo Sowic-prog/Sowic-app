@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB Schema Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #333;
+            color: #fff;
+        }
+
+        .result {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+
+        .success {
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+
+        .error {
+            border-color: #f44336;
+            color: #f44336;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Supabase Table Verification</h1>
+    <div id="results">Running tests...</div>
+
+    <script>
+        const supabaseUrl = 'https://huzmjdmueyrhlucfpaun.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1em1qZG11ZXlyaGx1Y2ZwYXVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4NTAxMTYsImV4cCI6MjA4NDQyNjExNn0.9wRf8_UlBTF4GPutwzDYbf0kmZnzgPmkxYRsiy4VyYM';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        const resultsDiv = document.getElementById('results');
+
+        async function testTable(tableName) {
+            const { data, error } = await supabase.from(tableName).select('*').limit(1);
+            const div = document.createElement('div');
+            div.className = 'result ' + (error ? 'error' : 'success');
+            if (error) {
+                div.innerHTML = `<strong>${tableName}</strong>: ERROR - ${error.message} (Code: ${error.code})`;
+            } else {
+                div.innerHTML = `<strong>${tableName}</strong>: EXISTS - Access OK. Data: ${JSON.stringify(data)}`;
+            }
+            resultsDiv.appendChild(div);
+            return !error;
+        }
+
+        async function runTests() {
+            resultsDiv.innerHTML = '';
+
+            await testTable('staff');
+            await testTable('Staf');
+            await testTable('perfiles');
+            await testTable('profiles');
+            await testTable('users');
+        }
+
+        runTests();
+    </script>
+</body>
+
+</html>

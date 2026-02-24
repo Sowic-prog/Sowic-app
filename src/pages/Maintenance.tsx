@@ -763,17 +763,25 @@ const Maintenance: React.FC = () => {
 
             let response;
             try {
-                // RESET TO STANDARD
-                response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
+                // RESET TO STANDARD STABLE MODEL
+                response = await (ai as any).models.generateContent({
+                    model: 'gemini-1.5-flash',
                     contents: [{ role: 'user', parts: parts }]
                 });
-            } catch (e) {
-                console.error("AI Maintenance Failed", e);
-                throw e;
+            } catch (e: any) {
+                console.warn("Retrying with fallback model due to:", e.message);
+                try {
+                    response = await (ai as any).models.generateContent({
+                        model: 'gemini-pro-vision',
+                        contents: [{ role: 'user', parts: parts }]
+                    });
+                } catch (e2) {
+                    console.error("AI Maintenance Failed completely", e2);
+                    throw e; // throw original error
+                }
             }
 
-            const analysis = response.text;
+            const analysis = response.text || (response.response ? response.response.text() : "");
             // Se guarda en aiAnalysis Y ADEMÁS se sobrescribe el comentario (nota) para que el usuario pueda editarlo
             setItems(prev => prev.map(i => i.id === itemId ? {
                 ...i,

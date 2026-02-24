@@ -21,6 +21,7 @@ const CalendarPage = React.lazy(() => import('./pages/Calendar'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Login = React.lazy(() => import('./pages/Login'));
 const Checklist = React.lazy(() => import('./pages/Checklist'));
+const Help = React.lazy(() => import('./pages/Help'));
 
 // New Asset Pages
 const Vehicles = React.lazy(() => import('./pages/Vehicles'));
@@ -159,6 +160,11 @@ const App: React.FC = () => {
               <Route path="/calendar" element={
                 <Layout>
                   <CalendarPage />
+                </Layout>
+              } />
+              <Route path="/help" element={
+                <Layout>
+                  <Help />
                 </Layout>
               } />
             </Route>

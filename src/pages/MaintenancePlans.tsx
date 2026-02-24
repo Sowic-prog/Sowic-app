@@ -134,15 +134,14 @@ const MaintenancePlans: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedPlan, setSelectedPlan] = useState<MaintenancePlan | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
 
     // Filter State
     const [filterAssetId, setFilterAssetId] = useState<string>('all');
 
-    // Searchable Asset Selector State (Removed custom searchable state as requested)
-
     // Form States
     const [isCreating, setIsCreating] = useState(false);
-    const [formPlan, setFormPlan] = useState<Partial<MaintenancePlan>>({
+    const [formPlan, setFormPlan] = useState<Partial<MaintenancePlan> & { initialUsageOffset?: number, eventsCount?: number }>({
         title: '',
         assetId: '',
         baseFrequency: 500,
@@ -151,7 +150,9 @@ const MaintenancePlans: React.FC = () => {
         frequencyTimeUnit: 'Meses',
         dailyUsageEstimate: 0,
         events: [],
-        notes: ''
+        notes: '',
+        initialUsageOffset: 0,
+        eventsCount: 6
     });
 
     // Event Editing States
@@ -333,9 +334,106 @@ const MaintenancePlans: React.FC = () => {
         }
     };
 
+    // Patterns / Templates Library
+    const MAINTENANCE_TEMPLATES = [
+        {
+            id: 'veh-light',
+            name: 'Vehículo Liviano (10k km)',
+            type: 'Rodados',
+            baseFreq: 10000,
+            unit: 'Kilómetros' as const,
+            timeVal: 6,
+            timeUnit: 'Meses' as const,
+            pattern: [
+                { title: 'Service 10k: Aceite y Filtros', offset: 10000, tasks: ['Cambio aceite sintético', 'Filtro aceite', 'Filtro aire', 'Check de niveles'] },
+                { title: 'Service 20k: Integral', offset: 20000, tasks: ['Cambio aceite y filtros', 'Alineación y balanceo', 'Rotación neumáticos', 'Filtro habitáculo'] },
+                { title: 'Service 30k: Aceite y Filtros', offset: 30000, tasks: ['Cambio aceite sintético', 'Filtro aceite', 'Filtro aire'] },
+                { title: 'Service 40k: Mayor', offset: 40000, tasks: ['Aceite y filtros', 'Frenos delanteros', 'Líquido refrigerante', 'Correa accesorios'] },
+            ]
+        },
+        {
+            id: 'mach-heavy',
+            name: 'Maquinaria Pesada (250h)',
+            type: 'Maquinaria',
+            baseFreq: 250,
+            unit: 'Horas' as const,
+            timeVal: 3,
+            timeUnit: 'Meses' as const,
+            pattern: [
+                { title: 'PM1: 250 Horas', offset: 250, tasks: ['Aceite motor y filtro', 'Filtro combustible', 'Engrase general', 'Inspección visual'] },
+                { title: 'PM2: 500 Horas', offset: 500, tasks: ['Aceite motor y filtros', 'Filtros aire primario/secundario', 'Muestreo de aceite', 'Ajuste de correas'] },
+                { title: 'PM1: 750 Horas', offset: 750, tasks: ['Aceite motor y filtro', 'Filtro combustible', 'Engrase general'] },
+                { title: 'PM3: 1000 Horas', offset: 1000, tasks: ['Mantenimiento Mayor', 'Aceite hidráulico y filtros', 'Aceite mandos finales', 'Regulación de válvulas'] },
+            ]
+        },
+        {
+            id: 'infra-basic',
+            name: 'Infraestructura Anual',
+            type: 'Instalaciones en infraestructuras',
+            baseFreq: 0,
+            unit: 'Horas' as const,
+            timeVal: 1,
+            timeUnit: 'Años' as const,
+            pattern: [
+                { title: 'Medición de PAT (Res 900/15)', offset: 0, timeOffsetMonths: 12, tasks: ['Medición de continuidad', 'Medición de resistencia', 'Protocolo firmado'] },
+                { title: 'Control de Matafuegos', offset: 0, timeOffsetMonths: 6, tasks: ['Control de carga', 'Verificación de precintos', 'Planilla de control'] },
+                { title: 'Limpieza de Tanques', offset: 0, timeOffsetMonths: 12, tasks: ['Vaciado y desinfección', 'Análisis bacteriológico'] },
+            ]
+        }
+    ];
+
+    const applyTemplate = (template: typeof MAINTENANCE_TEMPLATES[0]) => {
+        const asset = assets.find(a => a.id === formPlan.assetId);
+        const currentUsage = asset?.hours || 0;
+        const today = new Date();
+        const usagePerDay = formPlan.dailyUsageEstimate || asset?.averageDailyUsage || 1;
+
+        const newEvents: MaintenanceEvent[] = template.pattern.map((p, idx) => {
+            let estimatedDate: Date;
+
+            if (p.offset > 0) {
+                // Calculation by offset
+                const targetUsage = Math.ceil((currentUsage + p.offset) / 500) * 500; // Round to nearest 500 for better triggers
+                const daysUntil = (p.offset) / usagePerDay;
+                estimatedDate = new Date(today);
+                estimatedDate.setDate(today.getDate() + Math.ceil(daysUntil));
+            } else {
+                // Calculation by time only
+                estimatedDate = new Date(today);
+                estimatedDate.setMonth(today.getMonth() + (p.timeOffsetMonths || 6));
+            }
+
+            return {
+                id: getUUID(),
+                title: p.title,
+                estimatedDate: estimatedDate.toISOString().split('T')[0],
+                status: 'Programado' as 'Programado',
+                triggerValue: p.offset > 0 ? (currentUsage + p.offset) : 0,
+                tasks: p.tasks.map(t => ({
+                    id: getUUID(),
+                    description: t,
+                    durationDays: 1,
+                    isCritical: false
+                }))
+            };
+        });
+
+        setFormPlan(prev => ({
+            ...prev,
+            title: `Plan ${template.name} - ${asset?.name || ''}`,
+            baseFrequency: template.baseFreq,
+            baseFrequencyUnit: template.unit,
+            frequencyTimeValue: template.timeVal,
+            frequencyTimeUnit: template.timeUnit,
+            events: newEvents
+        }));
+        setShowTemplates(false);
+        alert("Plantilla aplicada. Puede ajustar los eventos manualmente.");
+    };
+
     // --- PROJECTION LOGIC ---
     const calculateProjections = () => {
-        const { assetId, dailyUsageEstimate, baseFrequency, baseFrequencyUnit, frequencyTimeValue, frequencyTimeUnit } = formPlan;
+        const { assetId, dailyUsageEstimate, baseFrequency, baseFrequencyUnit, frequencyTimeValue, frequencyTimeUnit, initialUsageOffset, eventsCount } = formPlan;
 
         if (!assetId) {
             alert("Por favor seleccione un activo.");
@@ -343,8 +441,8 @@ const MaintenancePlans: React.FC = () => {
         }
 
         // We need at least one frequency defined
-        const hasUsageFreq = dailyUsageEstimate && baseFrequency && dailyUsageEstimate > 0 && baseFrequency > 0;
-        const hasTimeFreq = frequencyTimeValue && frequencyTimeValue > 0;
+        const hasUsageFreq = (dailyUsageEstimate && baseFrequency && dailyUsageEstimate > 0 && baseFrequency > 0);
+        const hasTimeFreq = (frequencyTimeValue && frequencyTimeValue > 0);
 
         if (!hasUsageFreq && !hasTimeFreq) {
             alert("Debe configurar al menos un criterio de frecuencia (Uso o Tiempo).");
@@ -354,22 +452,22 @@ const MaintenancePlans: React.FC = () => {
         const asset = assets.find(a => a.id === assetId);
         if (!asset) return;
 
-        const currentUsage = asset.hours; // This field holds KM or Hours based on type
+        // Use initial offset if provided, otherwise current usage
+        const startUsage = initialUsageOffset !== undefined && initialUsageOffset > 0 ? initialUsageOffset : asset.hours;
+        const count = eventsCount || 6;
+
         const newEvents: MaintenanceEvent[] = [];
         const today = new Date();
 
-        // Project next 6 services
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= count; i++) {
             let dateByUsage: Date | null = null;
             let dateByTime: Date | null = null;
             let targetUsage = 0;
 
             // 1. Calculate Date by Usage
             if (hasUsageFreq) {
-                // Calculate target usage marker (e.g. 500, 1000, 1500)
-                targetUsage = Math.ceil((currentUsage + (baseFrequency! * i)) / baseFrequency!) * baseFrequency!;
-                // Days until target = (Target - Current) / Daily
-                const daysUntil = Math.max(0, (targetUsage - currentUsage) / dailyUsageEstimate!);
+                targetUsage = Math.ceil((startUsage + (baseFrequency! * i)) / baseFrequency!) * baseFrequency!;
+                const daysUntil = Math.max(0, (targetUsage - startUsage) / dailyUsageEstimate!);
                 dateByUsage = new Date(today);
                 dateByUsage.setDate(today.getDate() + Math.ceil(daysUntil));
             }
@@ -384,7 +482,6 @@ const MaintenancePlans: React.FC = () => {
                 } else if (frequencyTimeUnit === 'Años') {
                     dateByTime.setFullYear(today.getFullYear() + (frequencyTimeValue! * i));
                 } else {
-                    // Semanas
                     dateByTime.setDate(today.getDate() + (frequencyTimeValue! * 7 * i));
                 }
             }
@@ -394,29 +491,27 @@ const MaintenancePlans: React.FC = () => {
             let eventTitle = "";
 
             if (dateByUsage && dateByTime) {
-                // If usage date is sooner, use usage logic
-                if (dateByUsage < dateByTime) {
+                if (dateByUsage <= dateByTime) {
                     finalDate = dateByUsage;
-                    eventTitle = `Service ${targetUsage.toLocaleString()} ${baseFrequencyUnit}`;
+                    eventTitle = `Mantenimiento ${targetUsage.toLocaleString()} ${baseFrequencyUnit}`;
                 } else {
                     finalDate = dateByTime;
-                    // If triggered by time, we estimate what the usage might be roughly, or just show Time title
-                    eventTitle = `Preventivo ${frequencyTimeValue! * i} ${frequencyTimeUnit}`;
+                    eventTitle = `Mantenimiento Preventivo (${frequencyTimeValue! * i} ${frequencyTimeUnit})`;
                 }
             } else if (dateByUsage) {
                 finalDate = dateByUsage;
-                eventTitle = `Service ${targetUsage.toLocaleString()} ${baseFrequencyUnit}`;
+                eventTitle = `Mantenimiento ${targetUsage.toLocaleString()} ${baseFrequencyUnit}`;
             } else {
                 finalDate = dateByTime!;
-                eventTitle = `Preventivo ${frequencyTimeValue! * i} ${frequencyTimeUnit}`;
+                eventTitle = `Mantenimiento Preventivo (${frequencyTimeValue! * i} ${frequencyTimeUnit})`;
             }
 
             newEvents.push({
                 id: getUUID(),
                 title: eventTitle,
                 estimatedDate: finalDate.toISOString().split('T')[0],
-                status: 'Programado',
-                triggerValue: targetUsage || 0, // 0 if time only
+                status: 'Programado' as 'Programado',
+                triggerValue: targetUsage || 0,
                 tasks: [],
                 generatedOtId: undefined
             });
@@ -483,6 +578,128 @@ const MaintenancePlans: React.FC = () => {
         navigate(`/maintenance/ot/${otId}`);
     };
 
+    const handleRescheduleEvent = async (event: MaintenanceEvent, linkedOt?: any) => {
+        const newDate = window.prompt("Ingrese la nueva fecha pactada (YYYY-MM-DD):", event.estimatedDate);
+        if (!newDate || newDate === event.estimatedDate) return;
+
+        // Validation
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+            alert("Formato inválido. Use YYYY-MM-DD.");
+            return;
+        }
+
+        try {
+            // 1. Update event in DB
+            const { error: eventError } = await supabase
+                .from('maintenance_events')
+                .update({ estimated_date: newDate })
+                .eq('id', event.id);
+
+            if (eventError) throw eventError;
+
+            // 2. Update linked OT if exists
+            if (linkedOt) {
+                const { error: otError } = await supabase
+                    .from('work_orders')
+                    .update({
+                        date_start: newDate,
+                        date_due: newDate
+                    })
+                    .eq('id', linkedOt.id);
+
+                if (otError) throw otError;
+            }
+
+            alert("¡Cronograma actualizado! Se ha reprogramado la fecha de mantenimiento.");
+
+            // Local Refresh
+            fetchPlans();
+            if (selectedPlan) fetchPlanEvents(selectedPlan.id);
+
+        } catch (err: any) {
+            console.error("Reschedule Error", err);
+            alert("Error al reprogramar: " + err.message);
+        }
+    };
+
+    // --- VEHICLE DATA DECODING ---
+    const fetchNHTSAData = async (vin?: string) => {
+        if (!vin || vin.length < 10) return null;
+        try {
+            const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`);
+            const data = await res.json();
+            if (data && data.Results && data.Results[0]) {
+                const r = data.Results[0];
+                return {
+                    make: r.Make,
+                    model: r.Model,
+                    year: r.ModelYear,
+                    type: r.VehicleType,
+                    engine: r.DisplacementL ? `${r.DisplacementL}L ${r.EngineConfiguration || ''}` : null
+                };
+            }
+        } catch (e) {
+            console.error("NHTSA Fetch Error", e);
+        }
+        return null;
+    };
+
+    // --- RULE-BASED TECHNICAL GENERATION (Alternative to AI) ---
+    const generateTechnicalPlanLocally = (asset: Asset, nhtsa: any) => {
+        let pattern = [];
+        const type = asset.type;
+        const current = asset.hours || 0;
+        const unit = formPlan.baseFrequencyUnit || (type === 'Maquinaria' ? 'Horas' : 'Kilómetros');
+        const freq = formPlan.baseFrequency || (type === 'Maquinaria' ? 250 : 10000);
+        const usage = formPlan.dailyUsageEstimate || 8;
+        const today = new Date();
+
+        if (type === 'Rodados') {
+            pattern = [
+                { title: `Service ${freq} - Preventivo inicial`, tasks: ['Cambio de Aceite y Filtro Motor', 'Revisión de Frenos', 'Control de niveles de fluidos', 'Inspección de luces y seguridad'] },
+                { title: `Service ${freq * 2} - Mantenimiento Intermedio`, tasks: ['Filtros de aire y habitáculo', 'Alineación y balanceo', 'Rotación de neumáticos', 'Limpieza de bornes de batería'] },
+                { title: `Service ${freq * 3} - Preventivo estándar`, tasks: ['Cambio de Aceite y Filtro Motor', 'Control de suspensión', 'Engrase de cardán si aplica', 'Escaneo de fallas motor'] },
+                { title: `Service ${freq * 4} - Mantenimiento Mayor`, tasks: ['Correa de accesorios / distribución', 'Cambio líquido refrigerante', 'Service completo de frenos', 'Cambio bujías / filtros combustible'] }
+            ];
+        } else if (type === 'Maquinaria') {
+            pattern = [
+                { title: `PM ${freq}: Servicio Primario`, tasks: ['Aceite motor y filtros', 'Control de mangueras hidráulicas', 'Engrase general de articulaciones', 'Limpieza de radiadores'] },
+                { title: `PM ${freq * 2}: Servicio Secundario`, tasks: ['Filtros de aire (primario/secundario)', 'Muestreo de aceite (SOS)', 'Ajuste de tensiones de orugas/bornes', 'Revisión de dientes/cuchillas'] },
+                { title: `PM ${freq}: Servicio Estándar`, tasks: ['Aceite motor y filtros', 'Engrase general', 'Control de niveles mandos finales'] },
+                { title: `PM ${freq * 4}: Servicio Maestro`, tasks: ['Cambio aceite hidráulico y filtros', 'Cambio aceite de transmisión', 'Regulación de válvulas', 'Limpieza técnica de sistema de combustible'] }
+            ];
+        } else {
+            // Generic technical pattern
+            pattern = [
+                { title: 'Inspección Técnica Trimestral', tasks: ['Limpieza general', 'Control de funcionamiento', 'Ajuste de conexiones'] },
+                { title: 'Mantenimiento Semestral', tasks: ['Lubricación de partes móviles', 'Calibración de sensores/controles', 'Cambio de consumibles'] },
+                { title: 'Certificación / Auditoría Técnica', tasks: ['Pruebas de carga / rendimiento', 'Actualización de protocolos', 'Control de normativas vigentes'] },
+                { title: 'Service Anual Preventivo', tasks: ['Overhaul preventivo', 'Cambio de partes críticas', 'Informe técnico de estado'] }
+            ];
+        }
+
+        return pattern.map((p, i) => {
+            const offset = freq * (i + 1);
+            const daysUntil = offset / usage;
+            const eventDate = new Date(today);
+            eventDate.setDate(today.getDate() + Math.ceil(daysUntil));
+
+            return {
+                id: getUUID(),
+                title: p.title,
+                estimatedDate: eventDate.toISOString().split('T')[0],
+                status: 'Programado' as 'Programado',
+                triggerValue: current + offset,
+                tasks: p.tasks.map(tDescription => ({
+                    id: getUUID(),
+                    description: tDescription,
+                    durationDays: 1,
+                    isCritical: false
+                }))
+            };
+        });
+    };
+
     // --- AI GENERATION LOGIC ---
     const generateFullPlanWithAI = async () => {
         if (!formPlan.assetId) {
@@ -495,109 +712,112 @@ const MaintenancePlans: React.FC = () => {
 
         setIsGeneratingAI(true);
         try {
+            // 1. Enrich data with NHTSA if it's a vehicle (Always try this first)
+            let nhtsaInfo = null;
+            if (asset.type === 'Rodados' && (asset as any).chassisNumber) {
+                console.log("Decodificando VIN vía NHTSA...");
+                nhtsaInfo = await fetchNHTSAData((asset as any).chassisNumber);
+            }
+
+            // 2. Logic Check: If we have enough data, we can generate a high-quality local plan
+            // This is a reliable alternative to Gemini
+            const localTechnicalEvents = generateTechnicalPlanLocally(asset, nhtsaInfo);
+
             const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+            // If No API Key or user specifically wants to avoid it, we use the local technical generator
             if (!apiKey) {
-                alert("API Key no encontrada.");
+                console.log("No API Key found. Using local technical engine.");
+                setFormPlan(prev => ({
+                    ...prev,
+                    title: `Plan Técnico: ${asset.brand} ${asset.model} ${nhtsaInfo?.engine || ''}`,
+                    events: localTechnicalEvents
+                }));
+                alert("¡Plan generado exitosamente usando el Motor Técnico Local! (Sin IA)");
                 setIsGeneratingAI(false);
                 return;
             }
+
+            // --- AI GENERATION PROCEDURE ---
             const ai = new GoogleGenAI({ apiKey });
 
-            // First, establish the base frequency and events based on inputs
-            let baseFreq = formPlan.baseFrequency || 500;
-            let unit = formPlan.baseFrequencyUnit || 'Horas';
+            let unit = formPlan.baseFrequencyUnit || (asset.type === 'Maquinaria' ? 'Horas' : 'Kilómetros');
             let usage = formPlan.dailyUsageEstimate || 8;
             let current = asset.hours;
             const todayStr = new Date().toISOString().split('T')[0];
 
-            const prompt = `Actúa como un experto en gestión de flotas y mantenimiento preventivo.
-            Genera un PLAN ANUAL DE MANTENIMIENTO detallado para el siguiente activo:
-            
-            - Tipo: ${asset.type}
-            - Marca/Modelo: ${asset.brand} ${asset.model}
-            - Año: ${asset.year}
-            - Uso Actual: ${current} ${unit}
-            - Uso Estimado Diario: ${usage} ${unit}
-            - Frecuencia Base: ${baseFreq} ${unit}
-            - FECHA ACTUAL (HOY): ${todayStr}
+            let assetContext = `
+            - CLASE: ${asset.type}
+            - EQUIPO: ${asset.brand} ${asset.model}
+            - ANTIGÜEDAD: ${asset.year}
+            - USO ACUMULADO: ${current} ${unit}
+            - RÉGIMEN DIARIO: ${usage} ${unit}`;
 
-            Genera al menos 4 eventos de mantenimiento distribuidos en el próximo año a partir de HOY.
-            IMPORTANTE: Las fechas estimadas 'estimatedDate' DEBEN ser posteriores a ${todayStr}. No generes fechas en el pasado/vencidas.`;
-
-            let response;
-            let retryCount = 0;
-            const maxRetries = 3;
-
-            while (retryCount < maxRetries) {
-                try {
-                    console.log(`[v2] Attempt ${retryCount + 1} generating plan...`);
-                    response = await ai.models.generateContent({
-                        model: 'gemini-3-flash-preview',
-                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                        config: {
-                            responseMimeType: 'application/json',
-                            responseSchema: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    planTitle: { type: Type.STRING },
-                                    events: {
-                                        type: Type.ARRAY,
-                                        items: {
-                                            type: Type.OBJECT,
-                                            properties: {
-                                                title: { type: Type.STRING },
-                                                estimatedDate: { type: Type.STRING, description: "YYYY-MM-DD" },
-                                                triggerValue: { type: Type.NUMBER },
-                                                tasks: {
-                                                    type: Type.ARRAY,
-                                                    items: {
-                                                        type: Type.OBJECT,
-                                                        properties: {
-                                                            description: { type: Type.STRING },
-                                                            durationDays: { type: Type.NUMBER },
-                                                            isCritical: { type: Type.BOOLEAN }
-                                                        },
-                                                        required: ["description", "durationDays", "isCritical"]
-                                                    }
-                                                }
-                                            },
-                                            required: ["title", "estimatedDate", "triggerValue", "tasks"]
-                                        }
-                                    }
-                                },
-                                required: ["planTitle", "events"]
-                            }
-                        }
-                    });
-                    break; // Success
-                } catch (e: any) {
-                    retryCount++;
-                    console.warn(`Attempt ${retryCount} failed: ${e.message}`);
-                    if (retryCount >= maxRetries) {
-                        console.error("AI Generation Failed in MaintenancePlans after retries", e);
-                        setIsGeneratingAI(false);
-                        alert(`Error: Modelo sobrecargado (503). Intente en unos momentos.\nDetalle: ${e.message}`);
-                        return;
-                    }
-                    // Wait 2 seconds before retrying
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
+            if (nhtsaInfo) {
+                assetContext += `
+            - DATOS OFICIALES (NHTSA): 
+              * Marca: ${nhtsaInfo.make} 
+              * Modelo: ${nhtsaInfo.model}
+              * Año: ${nhtsaInfo.year}
+              * Motor: ${nhtsaInfo.engine || 'N/A'}`;
             }
 
-            console.log("AI Response received (MaintenancePlans):", response);
+            const prompt = `Actúa como un experto en ingeniería de mantenimiento industrial y flotas.
+            Genera un PLAN TÉCNICO DE MANTENIMIENTO PREVENTIVO basándote en la siguiente información del activo:
+            ${assetContext}
+            - FECHA ACTUAL DE REFERENCIA: ${todayStr}
+
+            Instrucciones:
+            1. Genera exactamente 4 hitos de mantenimiento distribuidos en 12 meses.
+            2. Cada hito debe tener un título técnico (Ej: 'Service Mayor Grade A', 'PM 500h Engine Care').
+            3. Para cada hito, incluye una lista de 4 a 6 tareas específicas obligatorias.
+            4. Las fechas deben ser realistas basadas en el Uso Acumulado y Régimen Diario.
+            5. EL JSON DEBE SER ESTRICTO Y VÁLIDO.
+            
+            Estructura Requerida:
+            {
+              "planTitle": "Nombre del Plan",
+              "events": [
+                {
+                  "title": "Nombre del Hito",
+                  "estimatedDate": "YYYY-MM-DD",
+                  "triggerValue": 10500,
+                  "tasks": [
+                    { "description": "Descripción de tarea", "durationDays": 1, "isCritical": false }
+                  ]
+                }
+              ]
+            }`;
+
+            let response;
+            try {
+                response = await (ai as any).models.generateContent({
+                    model: 'gemini-1.5-flash',
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    config: { responseMimeType: 'application/json' }
+                });
+            } catch (e: any) {
+                console.warn("AI Generation Failed. Using local technical engine fallback.", e);
+                setFormPlan(prev => ({
+                    ...prev,
+                    title: `Plan Técnico: ${asset.brand} ${asset.model}`,
+                    events: localTechnicalEvents
+                }));
+                alert("La IA está fuera de línea. He generado el plan usando el Motor Técnico Local de respaldo.");
+                setIsGeneratingAI(false);
+                return;
+            }
 
             let generatedData;
             try {
-                // Try parsing the text directly (safest across versions)
-                // Use a type assertion to safely access .text if it exists, or fallback to sensible default
-                const rawText = (response as any).text || JSON.stringify((response as any).parsed) || "{}";
-                generatedData = JSON.parse(rawText);
-            } catch (parseError) {
-                console.error("JSON Parse Error", parseError);
-                // Fallback: Check if .parsed is available directly as object
-                if ((response as any).parsed) {
-                    generatedData = (response as any).parsed;
-                }
+                const text = response.text || (response.response ? response.response.text() : "");
+                const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                generatedData = JSON.parse(cleanedText);
+            } catch (e) {
+                console.error("JSON Parse Error. Using local fallback.", e);
+                setFormPlan(prev => ({ ...prev, events: localTechnicalEvents }));
+                alert("Error de lectura de IA. Se aplicó el plan técnico estándar.");
+                return;
             }
 
             if (generatedData && generatedData.events) {
@@ -608,7 +828,7 @@ const MaintenancePlans: React.FC = () => {
                         id: getUUID(),
                         title: e.title,
                         estimatedDate: e.estimatedDate,
-                        status: 'Programado',
+                        status: 'Programado' as 'Programado',
                         triggerValue: e.triggerValue,
                         tasks: e.tasks?.map((t: any) => ({
                             id: getUUID(),
@@ -618,13 +838,15 @@ const MaintenancePlans: React.FC = () => {
                         })) || []
                     }))
                 }));
+                alert("¡Plan generado exitosamente! NHTSA Proporcionó datos base y el Motor combinó la lógica.");
             } else {
-                alert("La IA no devolvió un plan válido. Intente nuevamente.");
+                setFormPlan(prev => ({ ...prev, events: localTechnicalEvents }));
+                alert("Respuesta de IA incompleta. Se utilizó el generador de respaldo.");
             }
 
         } catch (error: any) {
-            console.error("AI Error", error);
-            alert("Error al generar el plan con IA: " + error.message);
+            console.error("Critical AI/Logic Error", error);
+            alert("Error al conectar con el servicio. Intente usar Proyección Manual.");
         } finally {
             setIsGeneratingAI(false);
         }
@@ -834,9 +1056,52 @@ const MaintenancePlans: React.FC = () => {
                 <div className="p-6 space-y-6">
                     {/* 1. Configuration Section */}
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
-                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
-                            <TrendingUp size={16} className="text-orange-500" /> Configuración de Proyección
-                        </h3>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                <TrendingUp size={16} className="text-orange-500" /> Configuración de Proyección
+                            </h3>
+                            <button
+                                onClick={() => setShowTemplates(true)}
+                                className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-indigo-100 transition-colors uppercase tracking-widest"
+                            >
+                                <Box size={14} /> Librería de Plantillas
+                            </button>
+                        </div>
+
+                        {/* Templates Modal/Overlay */}
+                        {showTemplates && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                                <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                                        <h4 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2">
+                                            <Sparkles size={16} className="text-indigo-500" /> Plantillas Sugeridas
+                                        </h4>
+                                        <button onClick={() => setShowTemplates(false)} className="text-slate-400 p-1 hover:text-slate-600"><X size={20} /></button>
+                                    </div>
+                                    <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                                        <p className="text-[10px] text-slate-400 font-bold px-2 uppercase mb-1">Seleccione un patrón base:</p>
+                                        {MAINTENANCE_TEMPLATES.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => applyTemplate(t)}
+                                                className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 text-left transition-all group flex items-center justify-between"
+                                            >
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm group-hover:text-indigo-700">{t.name}</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium">Intervalos de {t.baseFreq} {t.unit}</p>
+                                                </div>
+                                                <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="p-6 bg-slate-50/50">
+                                        <p className="text-[10px] text-slate-400 italic text-center">
+                                            Las plantillas aplican criterios técnicos recomendados automáticamente.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Filtrar Activos</label>
@@ -884,7 +1149,8 @@ const MaintenancePlans: React.FC = () => {
                                             baseFrequency: isInfra ? 0 : (asset?.type === 'Maquinaria' ? 250 : 10000),
                                             baseFrequencyUnit: asset?.type === 'Maquinaria' ? 'Horas' : 'Kilómetros',
                                             frequencyTimeValue: isInfra ? 12 : 6,
-                                            frequencyTimeUnit: 'Meses'
+                                            frequencyTimeUnit: 'Meses',
+                                            initialUsageOffset: asset?.hours || 0
                                         });
                                     }}
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-bold text-slate-800 appearance-none"
@@ -903,7 +1169,10 @@ const MaintenancePlans: React.FC = () => {
                         </div>
 
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Criterio por Uso (Opcional)</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
+                                Criterio por Uso (Opcional)
+                                {formPlan.initialUsageOffset! > 0 && <span className="text-orange-500">Offset: {formPlan.initialUsageOffset}</span>}
+                            </p>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label htmlFor="plan-daily" className="text-[10px] font-bold text-slate-400 uppercase ml-1">Uso Diario Promedio</label>
@@ -930,6 +1199,16 @@ const MaintenancePlans: React.FC = () => {
                                         <span className="flex items-center text-[10px] font-bold text-slate-500">{formPlan.baseFrequencyUnit}</span>
                                     </div>
                                 </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Uso Inicial para Proyección</label>
+                                <input
+                                    type="number"
+                                    value={formPlan.initialUsageOffset}
+                                    onChange={e => setFormPlan({ ...formPlan, initialUsageOffset: Number(e.target.value) })}
+                                    placeholder="Deje en 0 para usar lectura actual"
+                                    className="w-full p-3 bg-white border-none rounded-xl text-xs font-bold text-slate-800"
+                                />
                             </div>
                         </div>
 
@@ -962,17 +1241,23 @@ const MaintenancePlans: React.FC = () => {
                                     </select>
                                 </div>
                             </div>
-                            <p className="text-[9px] text-slate-400 italic">
-                                * Si configura ambos criterios, el sistema programará los eventos según lo que ocurra primero.
-                            </p>
+                        </div>
+
+                        <div className="bg-slate-100 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Cantidad de Eventos</span>
+                            <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                <button onClick={() => setFormPlan(p => ({ ...p, eventsCount: Math.max(1, (p.eventsCount || 6) - 1) }))} className="text-slate-400 hover:text-slate-800"><ChevronLeft size={16} /></button>
+                                <span className="text-xs font-bold text-slate-800 w-4 text-center">{formPlan.eventsCount}</span>
+                                <button onClick={() => setFormPlan(p => ({ ...p, eventsCount: Math.min(12, (p.eventsCount || 6) + 1) }))} className="text-slate-400 hover:text-slate-800"><ChevronRight size={16} /></button>
+                            </div>
                         </div>
 
                         <div className="flex gap-2 pt-2">
                             <button
                                 onClick={calculateProjections}
-                                className="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50"
+                                className="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 flex items-center justify-center gap-2"
                             >
-                                Calcular Proyección
+                                <Calendar size={14} className="text-slate-400" /> Calcular Proyección
                             </button>
                             <button
                                 onClick={generateFullPlanWithAI}
@@ -1202,8 +1487,9 @@ const MaintenancePlans: React.FC = () => {
                         <div className="relative pl-6 space-y-6 before:absolute before:left-[19px] before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200">
                             {selectedPlan.events?.map((evt, index) => {
                                 const isEventOverdue = new Date(evt.estimatedDate) < new Date() && evt.status !== 'Completado';
+                                // Note: work_orders is unmapped from DB, so we use date_start
                                 const linkedOt = evt.generatedOtId ? workOrders.find(o => o.id === evt.generatedOtId || o.mock_id === evt.generatedOtId) : null;
-                                const isOtOverdue = linkedOt && linkedOt.status !== 'Completada' && new Date(linkedOt.dateStart) < new Date();
+                                const isOtOverdue = linkedOt && linkedOt.status !== 'Completada' && new Date(linkedOt.date_start) < new Date();
 
                                 const statusColor = evt.status === 'Completado' ? 'bg-green-500' : isEventOverdue ? 'bg-red-500' : 'bg-slate-300';
 
@@ -1223,41 +1509,40 @@ const MaintenancePlans: React.FC = () => {
                                                 </div>
 
                                                 {/* Logic Button State */}
-                                                {linkedOt ? (
-                                                    // Case 1 & 2: OT Exists
-                                                    isOtOverdue ? (
-                                                        <button
-                                                            onClick={() => handleNavigateToOT(linkedOt.id)}
-                                                            className="text-[10px] font-bold bg-red-50 text-red-600 px-3 py-1.5 rounded-lg border border-red-100 flex items-center gap-1 hover:bg-red-100 transition-colors animate-pulse"
-                                                        >
-                                                            <AlertTriangle size={12} /> Regularizar OT
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleNavigateToOT(linkedOt.id)}
-                                                            className="text-[10px] font-bold bg-green-50 text-green-600 px-3 py-1.5 rounded-lg border border-green-100 flex items-center gap-1 hover:bg-green-100 transition-colors"
-                                                        >
-                                                            <ExternalLink size={12} /> OT
-                                                        </button>
-                                                    )
-                                                ) : (
-                                                    // Case 3: No OT yet
-                                                    isEventOverdue ? (
-                                                        <button
-                                                            onClick={() => handleGenerateOT(evt)}
-                                                            className="px-3 py-1.5 rounded-lg text-xs font-bold shadow-md active:scale-95 transition-transform bg-red-600 text-white animate-pulse"
-                                                        >
-                                                            Regularizar OT
-                                                        </button>
+                                                <div className="flex gap-2">
+                                                    {linkedOt ? (
+                                                        <>
+                                                            {isOtOverdue && (
+                                                                <button
+                                                                    onClick={() => handleRescheduleEvent(evt, linkedOt)}
+                                                                    className="text-[10px] font-black bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg border border-orange-100 uppercase tracking-widest hover:bg-orange-100"
+                                                                >
+                                                                    Reprogramar
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleNavigateToOT(linkedOt.id)}
+                                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1 transition-all ${isOtOverdue
+                                                                    ? 'bg-red-50 text-red-600 border-red-100 animate-pulse'
+                                                                    : 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100'
+                                                                    }`}
+                                                            >
+                                                                {isOtOverdue ? <AlertTriangle size={12} /> : <ExternalLink size={12} />}
+                                                                OT {linkedOt.status}
+                                                            </button>
+                                                        </>
                                                     ) : (
                                                         <button
                                                             onClick={() => handleGenerateOT(evt)}
-                                                            className="px-3 py-1.5 rounded-lg text-xs font-bold shadow-md active:scale-95 transition-transform bg-slate-800 text-white"
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-md active:scale-95 transition-transform ${isEventOverdue
+                                                                ? 'bg-red-600 text-white animate-pulse'
+                                                                : 'bg-slate-800 text-white'
+                                                                }`}
                                                         >
-                                                            Generar OT
+                                                            {isEventOverdue ? 'Regularizar OT' : 'Generar OT'}
                                                         </button>
-                                                    )
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="space-y-2 pt-2 border-t border-slate-50">

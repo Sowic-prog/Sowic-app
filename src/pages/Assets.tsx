@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Car, Hammer, Monitor, UtilityPole, Building2,
     ChevronRight, Activity, Package, AlertTriangle,
-    Tractor, Fan
+    Tractor, Fan, Armchair
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -18,7 +18,8 @@ const Assets = () => {
         machinery: 0,
         it: 0,
         installations: 0,
-        infrastructure: 0
+        infrastructure: 0,
+        furniture: 0
     });
     const [loading, setLoading] = useState(true);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -29,19 +30,30 @@ const Assets = () => {
 
     const fetchCounts = async () => {
         try {
-            const { data: assets } = await supabase.from('assets').select('type');
-            const { count: infraCount } = await supabase.from('infrastructures').select('*', { count: 'exact', head: true });
+            const [
+                { count: vCount },
+                { count: mCount },
+                { count: iCount },
+                { count: insCount },
+                { count: infCount },
+                { count: fCount }
+            ] = await Promise.all([
+                supabase.from('vehicles').select('*', { count: 'exact', head: true }),
+                supabase.from('machinery').select('*', { count: 'exact', head: true }),
+                supabase.from('it_equipment').select('*', { count: 'exact', head: true }),
+                supabase.from('infrastructure_installations').select('*', { count: 'exact', head: true }),
+                supabase.from('infrastructures').select('*', { count: 'exact', head: true }),
+                supabase.from('mobiliario').select('*', { count: 'exact', head: true })
+            ]);
 
-            if (assets) {
-                const newCounts = {
-                    vehicles: assets.filter(a => a.type === 'Rodados').length,
-                    machinery: assets.filter(a => a.type === 'Maquinaria').length,
-                    it: assets.filter(a => a.type === 'Equipos de Informática').length,
-                    installations: assets.filter(a => a.type === 'Instalaciones en infraestructuras').length,
-                    infrastructure: infraCount || 0
-                };
-                setCounts(newCounts);
-            }
+            setCounts({
+                vehicles: vCount || 0,
+                machinery: mCount || 0,
+                it: iCount || 0,
+                installations: insCount || 0,
+                infrastructure: infCount || 0,
+                furniture: fCount || 0
+            });
         } catch (error) {
             console.error('Error fetching counts:', error);
         } finally {
@@ -76,6 +88,15 @@ const Assets = () => {
             count: counts.it,
             color: 'text-purple-600',
             bgColor: 'bg-purple-50'
+        },
+        {
+            id: 'furniture',
+            name: 'Mobiliario',
+            icon: Armchair,
+            path: '/assets/furniture',
+            count: counts.furniture,
+            color: 'text-amber-600',
+            bgColor: 'bg-amber-50'
         },
         {
             id: 'installations',
@@ -150,7 +171,7 @@ const Assets = () => {
                     </div>
                     <div className="flex gap-8">
                         <div className="text-center">
-                            <p className="text-3xl font-black text-orange-500">{loading ? '...' : (counts.vehicles + counts.machinery + counts.it + counts.installations + counts.infrastructure)}</p>
+                            <p className="text-3xl font-black text-orange-500">{loading ? '...' : (counts.vehicles + counts.machinery + counts.it + counts.installations + counts.infrastructure + counts.furniture)}</p>
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Activos</p>
                         </div>
                         <div className="text-center">

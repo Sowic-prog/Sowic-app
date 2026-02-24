@@ -377,24 +377,33 @@ const WorkOrderDetail: React.FC = () => {
 
       let response;
       try {
-        console.log("Attempting generation with gemini-3-flash-preview...");
-        response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+        console.log("Attempting generation with gemini-1.5-flash...");
+        response = await (ai as any).models.generateContent({
+          model: 'gemini-1.5-flash',
           contents: [{ role: 'user', parts: [{ text: promptText }] }],
           config: { responseMimeType: 'application/json' }
         });
       } catch (e: any) {
-        console.error("AI Generation Failed", e);
-        alert(`Error al generar el protocolo ambiental: ${e.message}`);
-        setIsGeneratingEnv(false);
-        return;
+        console.warn("Retrying with fallback due to:", e.message);
+        try {
+          response = await (ai as any).models.generateContent({
+            model: 'gemini-pro',
+            contents: [{ role: 'user', parts: [{ text: promptText }] }]
+          });
+        } catch (e2) {
+          console.error("AI Generation Failed completely", e2);
+          alert(`Error al generar el protocolo ambiental: ${e.message}`);
+          setIsGeneratingEnv(false);
+          return;
+        }
       }
 
       console.log("AI Response received:", response);
-      const rawText = response.text || "";
+      const rawText = response.text || (response.response ? response.response.text() : "");
       let result;
       try {
-        result = JSON.parse(rawText.trim() || "{}");
+        const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        result = JSON.parse(cleanedText || "{}");
       } catch (e) {
         console.error("JSON Parse Error", e);
         alert("Error al procesar la respuesta de la IA.");

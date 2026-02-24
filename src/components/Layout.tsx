@@ -5,7 +5,8 @@ import {
   Home, Car, Folder, Plus, X, Users, Package,
   Handshake, Truck, LifeBuoy, Wrench, Calendar,
   FileText, BarChart3, Building2, LogOut, ChevronDown, Monitor, Hammer, ChevronsRight, UtilityPole, Grid,
-  Tractor, Fan, Briefcase, Armchair, CheckCircle2
+  Tractor, Fan, Briefcase, Armchair, CheckCircle2,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -48,6 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/inventory', icon: Package, label: 'Inventario' },
     { to: '/providers', icon: Handshake, label: 'Proveedores' },
     { to: '/calendar', icon: Calendar, label: 'Calendario' },
+    { to: '/help', icon: HelpCircle, label: 'Ayuda' },
   ].filter(item => checkPermission(item.to));
 
   // El menú global móvil con colores de marca (Naranja y Gris)
@@ -63,6 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/services', icon: LifeBuoy, label: 'Servicios', color: 'text-orange-600', bgColor: 'bg-orange-100' },
     { to: '/providers', icon: Handshake, label: 'Proveedores', color: 'text-slate-600', bgColor: 'bg-slate-100' },
     { to: '/reports', icon: BarChart3, label: 'Reportes', color: 'text-slate-800', bgColor: 'bg-slate-200' },
+    { to: '/help', icon: HelpCircle, label: 'Ayuda', color: 'text-slate-800', bgColor: 'bg-slate-200' },
   ].filter(item => checkPermission(item.to));
 
   const mobileNavItems = [
