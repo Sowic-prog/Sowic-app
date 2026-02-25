@@ -63,11 +63,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
         setUploading(true);
         setError(null);
-        let count = 0;
+        setSuccessCount(0);
 
         try {
-            // Determine table name based on asset type
-            let tableName = 'machinery'; // Default
+            let tableName = 'machinery';
             let prefix = 'MAQ-';
 
             switch (assetType) {
@@ -91,158 +90,192 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                     tableName = 'mobiliario';
                     prefix = 'MOB-';
                     break;
+                case 'Infraestructura':
+                    tableName = 'infrastructures';
+                    prefix = 'INF-';
+                    break;
             }
 
-            // Get the last ID from DB once to start the sequence
+            // Get starting internal ID
             let currentIdNumber = 0;
             const lastIdStr = await getNextInternalId(assetType as any);
-            // Parse the number part. getNextInternalId returns "PREFIX-NNN".
             const parts = lastIdStr.split('-');
             if (parts.length === 2 && !isNaN(parseInt(parts[1]))) {
-                currentIdNumber = parseInt(parts[1]) - 1; // Subtract 1 because getNextInternalId returns the *next* available, so we start from previous
+                currentIdNumber = parseInt(parts[1]) - 1;
             }
 
-            // Process each row
-            for (const row of previewData) {
-                // Generate Internal ID if not present
-                let internalId = row['ID Interno'] || row['internal_id'];
+            const assetsToInsert: any[] = [];
 
+            const parseNumber = (val: any): number | null => {
+                if (val === null || val === undefined || val === '') return null;
+                if (typeof val === 'number') return val;
+                const parsed = Number(String(val).replace(',', '.').trim());
+                return isNaN(parsed) ? null : parsed;
+            };
+
+            const parseIntSafe = (val: any): number | null => {
+                const num = parseNumber(val);
+                return num === null ? null : Math.round(num);
+            };
+
+            for (const row of previewData) {
+                // ID Interno handling
+                let internalId = row['ID Interno'] || row['internal_id'];
                 if (!internalId) {
                     currentIdNumber++;
                     internalId = `${prefix}${currentIdNumber.toString().padStart(3, '0')}`;
                 }
 
-                // Flexible header mapping
-                const brand = row['Marca'] || row['brand'] || row['Brand'] || '';
-                const model = row['Modelo'] || row['model'] || row['Model'] || '';
-                const functionalDesc = row['Descripción Funcional'] || row['functional_description'] || '';
-
-                // Generate name from Functional Description + Brand + Model
-                let generatedName = '';
-                if (functionalDesc && brand && model) {
-                    generatedName = `${functionalDesc} ${brand} ${model}`;
-                } else if (functionalDesc && brand) {
-                    generatedName = `${functionalDesc} ${brand}`;
-                } else if (brand && model) {
-                    generatedName = `${brand} ${model}`;
-                } else if (brand) {
-                    generatedName = brand;
-                } else if (functionalDesc) {
-                    generatedName = functionalDesc;
+                // Barcode handling
+                let barcodeId = String(row['Código de Barra'] || row['Codigo de Barra'] || row['barcode_id'] || '').trim();
+                if (barcodeId === '-' || barcodeId.toLowerCase() === 'n/a' || barcodeId === '.' || barcodeId === '') {
+                    barcodeId = null as any;
                 }
 
-                const name = generatedName || row['Nombre'] || row['name'] || row['Title'] || `Activo ${internalId}`;
-                const description = row['Descripción'] || row['Descripcion'] || row['description'] || row['Detalle'];
-                const complementaryDescription = row['Descripción Complementaria'] || row['Descripcion Complementaria'] || row['complementary_description'] || '';
-                const barcodeId = row['Código de Barra'] || row['Codigo de Barra'] || row['barcode_id'] || '';
-                const status = row['Estado'] || row['status'] || 'Operativo';
+                // Status normalization
+                const statusValue = String(row['Estado'] || row['status'] || 'Operativo').trim();
+                const status = (statusValue.toLowerCase() === 'activo' || statusValue.toLowerCase() === 'en uso' || statusValue.toLowerCase() === 'vigente') ? 'Operativo' : statusValue;
 
-                // Base mapping generic for all
-                let newAsset: any = {
+                // Name generation
+                const brand = String(row['Marca'] || row['brand'] || '').trim();
+                const model = String(row['Modelo'] || row['model'] || '').trim();
+                const funcDesc = String(row['Descripción Funcional'] || row['functional_description'] || '').trim();
+
+                let generatedName = '';
+                if (funcDesc && brand && model) generatedName = `${funcDesc} ${brand} ${model}`;
+                else if (funcDesc && brand) generatedName = `${funcDesc} ${brand}`;
+                else if (brand && model) generatedName = `${brand} ${model}`;
+                else if (brand) generatedName = brand;
+                else if (funcDesc) generatedName = funcDesc;
+
+                const name = generatedName || row['Nombre'] || row['name'] || `Activo ${internalId}`;
+                const description = row['Descripción'] || row['Descripcion'] || row['description'] || funcDesc || name;
+
+                // Extract common values
+                const location = row['Ubicación'] || row['location'] || 'Pañol Central';
+                const ownership = row['Propiedad'] || row['ownership'] || 'Propio';
+                const responsibleValue = row['Responsable'] || row['assigned_to'] || row['Relacionado'] || 'Sin Asignar';
+
+                let assetData: any = {
                     internal_id: internalId,
-                    barcode_id: barcodeId, // Mapped generic
+                    barcode_id: barcodeId,
                     name: name,
                     description: description,
-                    complementary_description: complementaryDescription,
                     status: status,
-                    image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=400', // Default image
-                    functional_description: functionalDesc,
+                    location: location,
+                    image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=400'
                 };
 
-                // Helper to safely parse numbers
-                const parseNumber = (val: any): number | null => {
-                    if (val === null || val === undefined || val === '') return null;
-                    if (typeof val === 'number') return val;
-                    const parsed = Number(val);
-                    return isNaN(parsed) ? null : parsed;
-                };
-
-                const parseIntSafe = (val: any): number | null => {
-                    const num = parseNumber(val);
-                    return num === null ? null : Math.round(num);
-                };
-
-                // Specific mappings
-                if (assetType === 'Maquinaria') {
-                    newAsset = {
-                        ...newAsset,
-                        brand: row['Marca'] || row['brand'],
-                        model: row['Modelo'] || row['model'],
-                        serial: row['Serie'] || row['serial'],
-                        year: parseIntSafe(row['Año'] || row['year']),
-                        hours: parseNumber(row['Horas'] || 0),
-                        location: row['Ubicación'] || row['location'],
-                        ownership: row['Propiedad'] || row['ownership'] || 'Propio',
-                        value: parseNumber(row['Valor'] || row['value'] || 0),
-                        tti: parseNumber(row['TTI'] || row['tti'] || 0),
-                        accounting_account: row['Cuenta Contable'] || row['accounting_account'],
-                        origin_year: parseIntSafe(row['Año'] || row['year']),
-                        useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
-                    };
-                } else if (assetType === 'Rodados') {
-                    newAsset = {
-                        ...newAsset,
-                        brand: row['Marca'] || row['brand'],
-                        model: row['Modelo'] || row['model'],
-                        domain_number: row['Dominio'] || row['domain_number'],
-                        year: parseIntSafe(row['Año'] || row['year']),
-                        origin_year: parseIntSafe(row['Año'] || row['year']), // Map to origin_year as well
-                        location: row['Ubicación'] || row['location'],
-                        ownership: row['Propiedad'] || row['ownership'] || 'Propio',
-                        engine_number: row['Motor'] || row['engine_number'],
-                        chassis_number: row['Chasis'] || row['chassis_number'],
-                        hours: parseNumber(row['Horas'] || row['hours'] || 0),
-                        value: parseNumber(row['Valor'] || row['value'] || 0),
-                        tti: parseNumber(row['TTI'] || row['tti'] || 0),
-                        accounting_account: row['Cuenta Contable'] || row['accounting_account'],
-                        useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
-                    };
-                } else if (assetType === 'Equipos de Informática') {
-                    newAsset = {
-                        ...newAsset,
-                        type: assetType, // IT Equipment has 'type' column
-                        brand: row['Marca'] || row['brand'],
-                        model: row['Modelo'] || row['model'],
-                        serial: row['Serie'] || row['serial'],
-                        processor: row['Procesador'] || row['processor'],
-                        ram: row['RAM'] || row['ram'],
-                        storage: row['Almacenamiento'] || row['storage'],
-                        assigned_to: row['Responsable'] || row['assigned_to']
-                    };
-                } else if (assetType === 'Mobiliario') {
-                    newAsset = {
-                        ...newAsset,
-                        type: assetType, // Mobiliario has 'type' column
-                        location: row['Ubicación'] || row['location'],
-                    };
-                } else if (assetType === 'Instalaciones en infraestructuras') {
-                    newAsset = {
-                        ...newAsset,
-                        location: row['Ubicación'] || row['location'],
-                    };
+                // Table-specific mapping based on actual database schema
+                switch (tableName) {
+                    case 'mobiliario':
+                        assetData = {
+                            ...assetData,
+                            brand, model, serial: String(row['Serie'] || row['serial'] || '').trim(),
+                            assigned_to: responsibleValue,
+                            ownership,
+                            type: 'Mobiliario',
+                            functional_description: funcDesc,
+                            complementary_description: row['Descripción Complementaria'] || row['Descripcion Complementaria'] || '',
+                            image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=400'
+                        };
+                        break;
+                    case 'infrastructure_installations':
+                        assetData = {
+                            // strictly only these columns: id, internal_id, name, description, location, status, image, functional_description, complementary_description, barcode_id
+                            internal_id: internalId,
+                            name: name,
+                            description: description,
+                            location: location,
+                            status: status,
+                            functional_description: funcDesc,
+                            complementary_description: row['Descripción Complementaria'] || row['Descripcion Complementaria'] || '',
+                            barcode_id: barcodeId,
+                            image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400'
+                        };
+                        break;
+                    case 'machinery':
+                        assetData = {
+                            ...assetData,
+                            brand, model, serial: String(row['Serie'] || row['serial'] || '').trim(), ownership,
+                            year: parseIntSafe(row['Año'] || row['year']) || new Date().getFullYear(),
+                            origin_year: parseIntSafe(row['Año'] || row['year']) || new Date().getFullYear(),
+                            value: parseNumber(row['Valor'] || row['value'] || 0),
+                            tti: parseNumber(row['TTI'] || row['tti'] || 0),
+                            useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
+                            accounting_account: row['Cuenta Contable'] || row['accounting_account'] || '',
+                            hours: parseNumber(row['Horas'] || row['hours'] || 0),
+                            daily_rate: parseNumber(row['Tarifa Diaria'] || row['daily_rate'] || 0),
+                            functional_description: funcDesc,
+                            complementary_description: row['Descripción Complementaria'] || row['Descripcion Complementaria'] || ''
+                        };
+                        break;
+                    case 'vehicles':
+                        assetData = {
+                            ...assetData,
+                            brand, model, ownership,
+                            year: parseIntSafe(row['Año'] || row['year']) || new Date().getFullYear(),
+                            origin_year: parseIntSafe(row['Año'] || row['year']) || new Date().getFullYear(),
+                            value: parseNumber(row['Valor'] || row['value'] || 0),
+                            tti: parseNumber(row['TTI'] || row['tti'] || 0),
+                            useful_life_remaining: parseNumber(row['VUR'] || row['useful_life_remaining'] || 0),
+                            accounting_account: row['Cuenta Contable'] || row['accounting_account'] || '',
+                            hours: parseNumber(row['Horas'] || row['hours'] || 0),
+                            daily_rate: parseNumber(row['Tarifa Diaria'] || row['daily_rate'] || 0),
+                            functional_description: funcDesc,
+                            complementary_description: row['Descripción Complementaria'] || row['Descripcion Complementaria'] || '',
+                            domain_number: row['Dominio'] || row['domain_number'] || '',
+                            engine_number: row['Motor'] || row['engine_number'] || '',
+                            chassis_number: row['Chasis'] || row['chassis_number'] || ''
+                        };
+                        break;
+                    case 'it_equipment':
+                        assetData = {
+                            ...assetData,
+                            brand, model, serial: String(row['Serie'] || row['serial'] || '').trim(), ownership,
+                            assigned_to: responsibleValue,
+                            type: 'Equipos de Informática',
+                            processor: row['Procesador'] || row['processor'] || '',
+                            ram: row['RAM'] || row['ram'] || '',
+                            storage: row['Almacenamiento'] || row['storage'] || '',
+                            functional_description: funcDesc,
+                            image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&q=80'
+                        };
+                        break;
+                    case 'infrastructures':
+                        assetData = {
+                            ...assetData,
+                            brand, model, serial: String(row['Serie'] || row['serial'] || '').trim(), ownership,
+                            responsible: responsibleValue,
+                            year: parseIntSafe(row['Año'] || row['year']) || new Date().getFullYear(),
+                            value: parseNumber(row['Valor'] || row['value'] || 0),
+                            daily_rate: parseNumber(row['Tarifa Diaria'] || row['daily_rate'] || 0),
+                            functional_description: funcDesc
+                        };
+                        break;
                 }
 
-                // Filter out undefined values to avoid DB errors
-                const cleanedAsset = Object.fromEntries(
-                    Object.entries(newAsset).filter(([_, v]) => v != null)
-                );
-
-                const { error: insertError } = await supabase
-                    .from(tableName)
-                    .insert([cleanedAsset]);
-
-                if (insertError) throw insertError;
-                count++;
+                // Remove null/undefined to let DB defaults work
+                const cleaned = Object.fromEntries(Object.entries(assetData).filter(([_, v]) => v !== undefined));
+                assetsToInsert.push(cleaned);
             }
 
-            setSuccessCount(count);
+            // Perform Batch Insert
+            const { error: insertError } = await supabase
+                .from(tableName)
+                .insert(assetsToInsert);
+
+            if (insertError) throw insertError;
+
+            setSuccessCount(assetsToInsert.length);
             setTimeout(() => {
                 onSuccess();
                 onClose();
             }, 2000);
 
         } catch (err: any) {
-            setError(`Error al importar: ${err.message}`);
+            console.error('Import error details:', err);
+            setError(`Error al importar: ${err.message || 'Error desconocido'}`);
         } finally {
             setUploading(false);
         }
@@ -262,10 +295,13 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 headers = ['Descripción Funcional', 'Marca', 'Modelo', 'Serie', 'Procesador', 'RAM', 'Almacenamiento', 'Responsable', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'Nombre'];
                 break;
             case 'Mobiliario':
-                headers = ['Descripción Funcional', 'Ubicación', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'ID Interno', 'Nombre'];
+                headers = ['Descripción Funcional', 'Marca', 'Modelo', 'Serie', 'Ubicación', 'Responsable', 'Propiedad', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'ID Interno', 'Nombre'];
                 break;
             case 'Instalaciones en infraestructuras':
-                headers = ['Descripción Funcional', 'Ubicación', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'ID Interno', 'Nombre'];
+                headers = ['Descripción Funcional', 'Marca', 'Modelo', 'Serie', 'Ubicación', 'Responsable', 'Propiedad', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'ID Interno', 'Nombre'];
+                break;
+            case 'Infraestructura':
+                headers = ['Nombre', 'Ubicación', 'Descripción', 'ID Interno', 'Código de Barra', 'Propiedad', 'Estado'];
                 break;
             default:
                 headers = ['Nombre', 'Marca', 'Modelo', 'Serie', 'Ubicación', 'Estado', 'Descripción', 'Descripción Complementaria', 'Código de Barra', 'Propiedad'];
@@ -304,6 +340,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                             <option value="Rodados">Rodados</option>
                             <option value="Equipos de Informática">Equipos de Informática</option>
                             <option value="Instalaciones en infraestructuras">Instalaciones</option>
+                            <option value="Infraestructura">Infraestructura</option>
                             <option value="Mobiliario">Mobiliario</option>
                         </select>
                     </div>

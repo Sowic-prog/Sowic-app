@@ -31,6 +31,7 @@ export interface AssetExpiration {
 
 export interface AssetIncident {
   id: string;
+  assetId: string;
   date: string;
   description: string;
   damageLevel: 'Leve' | 'Moderado' | 'Grave' | 'Destrucción Total';

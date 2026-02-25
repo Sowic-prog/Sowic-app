@@ -195,20 +195,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-2 z-50 flex items-center justify-between shadow-xl rounded-t-3xl">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-1.5 z-50 flex items-center justify-between shadow-xl rounded-t-2xl">
         {mobileNavItems.map((item, index) => {
           if (item.isAction) {
             return (
-              <div key={index} className="relative -top-8">
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 border-4 border-[#F8F9FA]">
-                  {isMenuOpen ? <X size={24} /> : <Plus size={28} />}
+              <div key={index} className="relative -top-7">
+                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 border-4 border-[#F8F9FA]">
+                  {isMenuOpen ? <X size={20} /> : <Plus size={24} />}
                 </button>
               </div>
             )
           }
           return (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex flex-col items-center justify-center w-12 h-12 ${isActive ? 'text-orange-500' : 'text-slate-300'}`}>
-              <item.icon size={24} />
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex flex-col items-center justify-center w-10 h-10 ${isActive ? 'text-orange-500' : 'text-slate-300'}`}>
+              <item.icon size={22} />
             </NavLink>
           )
         })}
@@ -222,17 +222,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex flex-col h-full">
-            <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 no-scrollbar flex-1">
+            <div className="grid grid-cols-3 gap-3 overflow-y-auto pb-6 no-scrollbar flex-1">
               {globalOverlayItems.map(item => (
                 <button
                   key={item.to}
                   onClick={() => { navigate(item.to); setIsMenuOpen(false); }}
-                  className="flex flex-col items-center justify-center bg-white p-5 rounded-3xl text-slate-600 border border-slate-100 shadow-sm active:scale-95 transition-transform hover:border-orange-200"
+                  className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl text-slate-600 border border-slate-100 shadow-sm active:scale-95 transition-transform hover:border-orange-200"
                 >
-                  <div className={`w-14 h-14 ${item.bgColor} rounded-2xl flex items-center justify-center mb-3 shadow-sm`}>
-                    <item.icon size={28} className={item.color} />
+                  <div className={`w-11 h-11 ${item.bgColor} rounded-xl flex items-center justify-center mb-2 shadow-sm`}>
+                    <item.icon size={22} className={item.color} />
                   </div>
-                  <span className="text-sm font-bold text-slate-700">{item.label}</span>
+                  <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">{item.label}</span>
                 </button>
               ))}
             </div>

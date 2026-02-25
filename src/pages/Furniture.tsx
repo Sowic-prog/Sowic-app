@@ -29,17 +29,18 @@ const mapAssetFromDB = (dbAsset: any): Asset => ({
     responsible: dbAsset.assigned_to || '', // Mapped from assigned_to
     ownership: dbAsset.ownership || '',
     status: dbAsset.status || 'Operativo',
-    image: dbAsset.image || 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=400', // Default Furniture image
-    // Ensure arrays are initialized (even if not used)
+    image: dbAsset.image || 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=400',
+    // Ensure arrays are initialized
     expirations: dbAsset.expirations || [],
     incidents: dbAsset.incidents || [],
-    // Defaults for missing fields avoids TS errors
+    // Metrics
     year: dbAsset.created_at ? new Date(dbAsset.created_at).getFullYear() : new Date().getFullYear(),
     hours: 0,
     dailyRate: 0,
     value: parseFloat(dbAsset.value) || 0,
     functionalDescription: dbAsset.functional_description || '',
     complementaryDescription: dbAsset.complementary_description || '',
+    type: 'Mobiliario'
 });
 
 const mapWorkOrderFromDB = (data: any) => ({
@@ -84,9 +85,11 @@ const mapAssetToDB = (asset: Partial<Asset>) => {
         location: asset.location,
         assigned_to: asset.responsible, // Mapped to assigned_to
         description: asset.description,
-        ownership: asset.ownership,
-        type: 'Mobiliario', // Fixed type
-        functional_description: asset.functionalDescription
+        ownership: asset.ownership || 'Propio',
+        type: 'Mobiliario',
+        functional_description: asset.functionalDescription,
+        complementary_description: asset.complementaryDescription,
+        value: asset.value
     };
 };
 
@@ -428,21 +431,54 @@ const Furniture: React.FC = () => {
                 const { data } = await supabase
                     .from('maintenance_plans')
                     .select('*, maintenance_events(*)')
-                    .eq('asset_id', selectedAsset.id)
-                    .order('created_at', { ascending: false });
+                    .eq('asset_id', selectedAsset.id);
+
                 if (data) {
                     setAssetPlans(data.map(p => ({
-                        ...p,
-                        events: p.maintenance_events || []
+                        id: p.id,
+                        title: p.title,
+                        baseFrequency: p.base_frequency,
+                        baseFrequencyUnit: p.base_frequency_unit,
+                        events: p.maintenance_events.map((e: any) => ({
+                            id: e.id,
+                            title: e.title,
+                            estimatedDate: e.estimated_date,
+                            status: e.status
+                        }))
                     })));
+                }
+            };
+
+            // Fetch Incidents from Central Table
+            const fetchIncidents = async () => {
+                const { data } = await supabase
+                    .from('asset_incidents')
+                    .select('*')
+                    .eq('asset_id', selectedAsset.id)
+                    .order('date', { ascending: false });
+
+                if (data) {
+                    const mappedInc = data.map(i => ({
+                        id: i.id,
+                        assetId: i.asset_id,
+                        date: i.date,
+                        description: i.description,
+                        damageLevel: i.damage_level,
+                        cost: i.cost,
+                        status: i.status,
+                        incidentNumber: i.incident_number,
+                        reportUrl: i.report_url
+                    }));
+                    setSelectedAsset(prev => prev ? ({ ...prev, incidents: mappedInc }) : null);
                 }
             };
 
             fetchWorkOrders();
             fetchChecklists();
             fetchPlans();
+            fetchIncidents();
         }
-    }, [selectedAsset]);
+    }, [selectedAsset?.id]);
 
     useEffect(() => {
         if (location.state && assets.length > 0) {
@@ -693,62 +729,64 @@ const Furniture: React.FC = () => {
 
     // --- INCIDENT LOGIC ---
     const handleAddIncident = async () => {
-        if (!newIncidentForm.description || !newIncidentForm.date || !selectedAsset) return;
+        if (!selectedAsset || !newIncidentForm.description) return;
 
         try {
-            let updatedIncidents = [...(selectedAsset.incidents || [])];
+            const payload = {
+                asset_id: selectedAsset.id,
+                date: newIncidentForm.date,
+                description: newIncidentForm.description,
+                damage_level: newIncidentForm.damageLevel,
+                cost: newIncidentForm.cost,
+                status: newIncidentForm.status,
+                incident_number: newIncidentForm.incidentNumber,
+                report_url: newIncidentForm.reportUrl
+            };
 
+            let data, error;
             if (isEditingIncident && editingIncidentId) {
-                updatedIncidents = updatedIncidents.map(inc =>
-                    inc.id === editingIncidentId
-                        ? { ...inc, ...newIncidentForm } as AssetIncident
-                        : inc
-                );
+                ({ data, error } = await supabase
+                    .from('asset_incidents')
+                    .update(payload)
+                    .eq('id', editingIncidentId)
+                    .select()
+                    .single());
             } else {
-                const incident: AssetIncident = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    date: newIncidentForm.date!,
-                    description: newIncidentForm.description!,
-                    damageLevel: (newIncidentForm.damageLevel as any) || 'Leve',
-                    cost: newIncidentForm.cost || 0,
-                    status: (newIncidentForm.status as any) || 'Reportado',
-                    incidentNumber: newIncidentForm.incidentNumber,
-                    reportUrl: newIncidentForm.reportUrl
-                };
-                updatedIncidents = [incident, ...updatedIncidents];
+                ({ data, error } = await supabase
+                    .from('asset_incidents')
+                    .insert(payload)
+                    .select()
+                    .single());
             }
-
-            const { error } = await supabase
-                .from('mobiliario')
-                .update({ incidents: updatedIncidents })
-                .eq('id', selectedAsset.id);
 
             if (error) throw error;
 
-            const updatedAsset = {
-                ...selectedAsset,
-                incidents: updatedIncidents
+            const newInc: AssetIncident = {
+                id: data.id,
+                assetId: data.asset_id,
+                date: data.date,
+                description: data.description,
+                damageLevel: data.damage_level,
+                cost: data.cost,
+                status: data.status,
+                incidentNumber: data.incident_number,
+                reportUrl: data.report_url
             };
 
-            setAssets(prev => prev.map(a => a.id === selectedAsset.id ? updatedAsset : a));
-            setSelectedAsset(updatedAsset);
+            setSelectedAsset(prev => prev ? ({
+                ...prev,
+                incidents: isEditingIncident
+                    ? prev.incidents?.map(i => i.id === data.id ? newInc : i)
+                    : [newInc, ...(prev.incidents || [])]
+            }) : null);
 
             setIsIncidentModalOpen(false);
+            setNewIncidentForm({ date: new Date().toISOString().split('T')[0], description: '', cost: 0, damageLevel: 'Leve', status: 'Reportado' });
             setIsEditingIncident(false);
             setEditingIncidentId(null);
-            setNewIncidentForm({
-                date: new Date().toISOString().split('T')[0],
-                description: '',
-                damageLevel: 'Leve',
-                cost: 0,
-                status: 'Reportado',
-                incidentNumber: '',
-                reportUrl: ''
-            });
-            alert(isEditingIncident ? "Siniestro actualizado correctamente." : "Siniestro registrado correctamente.");
         } catch (err: any) {
             console.error('Error saving incident:', err);
-            alert("Error al guardar el siniestro: " + err.message);
+            alert("Error al guardar siniestro: " + err.message);
         }
     };
 
@@ -763,22 +801,18 @@ const Furniture: React.FC = () => {
         if (!selectedAsset || !window.confirm("¿Está seguro de eliminar este registro de siniestro?")) return;
 
         try {
-            const updatedIncidents = (selectedAsset.incidents || []).filter(inc => inc.id !== incidentId);
-
             const { error } = await supabase
-                .from('mobiliario')
-                .update({ incidents: updatedIncidents })
-                .eq('id', selectedAsset.id);
+                .from('asset_incidents')
+                .delete()
+                .eq('id', incidentId);
 
             if (error) throw error;
 
-            const updatedAsset = {
-                ...selectedAsset,
-                incidents: updatedIncidents
-            };
+            setSelectedAsset(prev => prev ? ({
+                ...prev,
+                incidents: prev.incidents?.filter(i => i.id !== incidentId)
+            }) : null);
 
-            setAssets(prev => prev.map(a => a.id === selectedAsset.id ? updatedAsset : a));
-            setSelectedAsset(updatedAsset);
             alert("Siniestro eliminado correctamente.");
         } catch (err: any) {
             console.error('Error deleting incident:', err);
@@ -960,25 +994,26 @@ const Furniture: React.FC = () => {
         return (
             <div className="bg-[#F8F9FA] min-h-screen pb-24 font-sans animate-in slide-in-from-right-5 duration-300">
                 {/* Print Header */}
-                <div className="print-header">
+                <div className="print-header hidden print:flex items-center justify-between mb-8 border-b-2 border-slate-900 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold">SW</div>
+                        <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-xl">S</div>
                         <div>
-                            <h1 className="font-bold text-lg text-slate-800 uppercase">Ficha Técnica: Mobiliario</h1>
-                            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">SOWIC Asset Management</p>
+                            <h1 className="font-black text-xl text-slate-800 tracking-tight uppercase">Ficha Técnica Mobiliario</h1>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Sowic Asset Management System</p>
                         </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase">Actualizado al</p>
-                        <p className="font-bold text-slate-800">{new Date().toLocaleDateString()}</p>
                     </div>
                 </div>
 
                 <div className="bg-white p-4 sticky top-0 z-20 shadow-sm flex items-center justify-between no-print">
-                    <button onClick={() => setSelectedAsset(null)} className="text-slate-600 p-2" aria-label="Volver"><ChevronLeft size={24} /></button>
-                    <h1 className="font-bold text-lg text-slate-800 tracking-tight">
-                        {isEditingAsset ? 'Editar Mobiliario' : 'Detalle'}
-                    </h1>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setSelectedAsset(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                            <ChevronLeft size={24} />
+                        </button>
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none block">{selectedAsset.internalId}</span>
+                            <h1 className="font-bold text-lg text-slate-800 tracking-tight">{selectedAsset.name}</h1>
+                        </div>
+                    </div>
                     <div className="flex gap-2">
                         {isEditingAsset ? (
                             <>
@@ -1004,143 +1039,337 @@ const Furniture: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="p-6 space-y-6">
-                    {/* Header Asset Info / Edit Form */}
+                <div className="p-6">
                     {isEditingAsset ? (
-                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
-                            {/* Image Edit */}
-                            <div className="flex justify-center mb-6">
-                                <div className="relative w-32 h-32 rounded-3xl overflow-hidden bg-slate-100 group">
-                                    <img src={editFormData.image} alt="Asset" className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                        <Camera className="text-white" size={24} />
+                        <div className="space-y-6 max-w-2xl mx-auto">
+                            {/* Edit form implementation */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
+                                <div className="flex justify-center mb-8">
+                                    <div className="relative w-32 h-32 rounded-[2rem] overflow-hidden group shadow-xl ring-4 ring-slate-50">
+                                        <img src={editFormData.image} alt="Preview" className="w-full h-full object-cover" />
+                                        <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white">
+                                            <Camera size={24} />
+                                        </button>
+                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} aria-label="Cambiar imagen" />
                                     </div>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                                 </div>
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nombre</label>
-                                <input
-                                    type="text"
-                                    value={editFormData.name}
-                                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-lg font-bold text-slate-800"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5 col-span-2">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nombre del Activo</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.name}
+                                            onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
+                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">ID Interno</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.internalId}
+                                            disabled={!isSuperAdmin}
+                                            className={`w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-black text-slate-800 border-2 ${!isSuperAdmin ? 'opacity-50' : 'border-blue-50 focus:border-blue-200'}`}
+                                            aria-label="ID Interno"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Código ID</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.barcodeId}
+                                            onChange={e => setEditFormData({ ...editFormData, barcodeId: e.target.value })}
+                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800"
+                                            placeholder="Auto"
+                                            aria-label="Código de Barras"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Marca</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.brand}
+                                            onChange={e => setEditFormData({ ...editFormData, brand: e.target.value })}
+                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                            aria-label="Marca"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Modelo</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.model}
+                                            onChange={e => setEditFormData({ ...editFormData, model: e.target.value })}
+                                            className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                            aria-label="Modelo"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">ID Interno</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.internalId}
-                                        onChange={e => setEditFormData({ ...editFormData, internalId: e.target.value })}
-                                        className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800 uppercase ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        disabled={!isSuperAdmin}
-                                        aria-label="ID Interno"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
-                                    <select
-                                        value={editFormData.status}
-                                        onChange={e => setEditFormData({ ...editFormData, status: e.target.value as any })}
-                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
-                                        aria-label="Estado"
-                                    >
-                                        {Object.values(AssetStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Propiedad</label>
-                                    <select
-                                        value={editFormData.ownership}
-                                        onChange={e => setEditFormData({ ...editFormData, ownership: e.target.value as any })}
-                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
-                                        disabled={!isSuperAdmin}
-                                        aria-label="Propiedad"
-                                    >
-                                        <option value="Propio">Propio</option>
-                                        <option value="Alquilado">Alquilado</option>
-                                        <option value="Leasing">Leasing</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Código de Barras</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.barcodeId}
-                                        onChange={e => setEditFormData({ ...editFormData, barcodeId: e.target.value })}
-                                        className={`w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium ${!isSuperAdmin ? 'opacity-50' : ''}`}
-                                        disabled={!isSuperAdmin}
-                                        aria-label="Código de Barras"
-                                    />
-                                </div>
-                                <div className="col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Ubicación</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.location}
-                                        onChange={e => setEditFormData({ ...editFormData, location: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
-                                    />
-                                </div>
-                                <div className="col-span-2 space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Responsable</label>
                                     <select
                                         value={editFormData.responsible}
                                         onChange={e => setEditFormData({ ...editFormData, responsible: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800"
                                     >
-                                        <option value="">Seleccionar Responsable</option>
+                                        <option value="">Sin Asignar</option>
                                         {dbStaff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                                     </select>
                                 </div>
-                                <div className="col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Descripción</label>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Descripción Funcional</label>
                                     <textarea
-                                        value={editFormData.description}
-                                        onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium h-24"
+                                        value={editFormData.functionalDescription}
+                                        onChange={e => setEditFormData({ ...editFormData, functionalDescription: e.target.value })}
+                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium h-24 resize-none"
+                                        aria-label="Descripción Funcional"
                                     />
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500 rounded-full blur-[60px] opacity-20 -mr-10 -mt-10 pointer-events-none"></div>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 max-w-7xl mx-auto">
+                            {/* Bento Grid layout */}
+                            {/* Left Column: Image and Key Info (4/12) */}
+                            <div className="md:col-span-4 space-y-6">
+                                <div className="bg-white p-2 rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                                    <img src={selectedAsset.image} alt={selectedAsset.name} className="w-full h-80 object-cover rounded-[2rem]" />
+                                </div>
 
-                            <div className="relative z-10">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-800/50 px-2 py-1 rounded mb-3 inline-block backdrop-blur-sm">
-                                    {selectedAsset.internalId}
-                                </span>
-                                <h2 className="text-3xl font-black mb-1 leading-tight">{selectedAsset.name}</h2>
-                            </div>
-
-                            <div className="mt-6 flex items-center justify-between relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10">
-                                        <MapPin className="text-orange-500" size={24} />
+                                <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500 rounded-full blur-[60px] opacity-20 -mr-10 -mt-10"></div>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Estado Actual</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-3 h-3 rounded-full animate-pulse ${getStatusColor(selectedAsset.status)}`}></div>
+                                        <h2 className="text-2xl font-black tracking-tight">{selectedAsset.status}</h2>
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Ubicación</p>
-                                        <p className="text-sm font-bold text-slate-200">{selectedAsset.location}</p>
+                                    <div className="mt-8 pt-8 border-t border-white/10 space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-slate-400 font-bold uppercase">Propiedad</span>
+                                            <span className="text-xs font-black text-orange-500 uppercase bg-orange-500/10 px-2 py-1 rounded">{selectedAsset.ownership}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-slate-400 font-bold uppercase">Ubicación</span>
+                                            <span className="text-xs font-black">{selectedAsset.location}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${selectedAsset.status === AssetStatus.OPERATIONAL ? 'bg-green-500/20 border-green-500/30 text-green-400' :
-                                        selectedAsset.status === AssetStatus.IN_MAINTENANCE ? 'bg-orange-500/20 border-orange-500/30 text-orange-400' :
-                                            'bg-red-500/20 border-red-500/30 text-red-400'
-                                        }`}>
-                                        <div className={`w-2 h-2 rounded-full ${selectedAsset.status === AssetStatus.OPERATIONAL ? 'bg-green-500' : 'bg-red-500'
-                                            }`}></div>
-                                        <span className="text-xs font-bold uppercase">{selectedAsset.status}</span>
+
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                        <QrCode size={16} className="text-orange-500" /> Identificación
+                                    </h3>
+                                    <div className="flex justify-center mb-6 py-4 bg-slate-50 rounded-3xl border border-slate-100 border-dashed">
+                                        <BarcodeView id={selectedAsset.barcodeId || selectedAsset.internalId} />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-slate-50 rounded-2xl">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">ID Interno</p>
+                                            <p className="text-sm font-black text-slate-800 tracking-tight">{selectedAsset.internalId}</p>
+                                        </div>
+                                        <div className="p-4 bg-slate-50 rounded-2xl">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Código de Barras</p>
+                                            <p className="text-sm font-black text-slate-800 tracking-tight">{selectedAsset.barcodeId || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right Column: Detailed Info and History (8/12) */}
+                            <div className="md:col-span-8 space-y-6">
+                                {/* Details Bento Row */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 min-h-[220px]">
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            <Armchair size={16} className="text-orange-500" /> Características
+                                        </h3>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Marca / Fabricante</p>
+                                                <p className="text-sm font-bold text-slate-700">{selectedAsset.brand || 'No especificada'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Modelo</p>
+                                                <p className="text-sm font-bold text-slate-700">{selectedAsset.model || 'No especificado'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Nº de Serie</p>
+                                                <p className="text-sm font-mono font-bold text-slate-700">{selectedAsset.serial || 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 min-h-[220px]">
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            <UserCircle2 size={16} className="text-orange-500" /> Responsable
+                                        </h3>
+                                        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                                            <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-100">
+                                                {selectedAsset.responsible?.charAt(0) || 'S'}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-800 tracking-tight">{selectedAsset.responsible || 'Sin Asignar'}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Responsable Actual</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Descriptions */}
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                        <FileText size={16} className="text-orange-500" /> Descripciones
+                                    </h3>
+                                    <div className="space-y-6">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Descripción Funcional</p>
+                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                                    {selectedAsset.functionalDescription || 'Sin descripción funcional cargada.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Notas Complementarias</p>
+                                            <p className="text-sm text-slate-500 leading-relaxed">
+                                                {selectedAsset.description || 'No hay información adicional registrada para este activo.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Maintenance & History Accordion */}
+                                <div className="space-y-4">
+                                    {/* Work Orders */}
+                                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden no-print">
+                                        <button
+                                            onClick={() => setIsWorkOrdersExpanded(!isWorkOrdersExpanded)}
+                                            className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                                                    <Wrench size={20} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Historial de Mantenimiento</h3>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{assetWorkOrders.length} Órdenes de Trabajo</p>
+                                                </div>
+                                            </div>
+                                            {isWorkOrdersExpanded ? <ChevronUp className="text-slate-400" /> : <ChevronDown className="text-slate-400" />}
+                                        </button>
+                                        {isWorkOrdersExpanded && (
+                                            <div className="p-6 pt-0 border-t border-slate-50 space-y-3">
+                                                {assetWorkOrders.length > 0 ? (
+                                                    assetWorkOrders.map(wo => (
+                                                        <div key={wo.id} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100 hover:border-blue-100 transition-colors cursor-pointer group" onClick={() => navigate(`/maintenance/ot/${wo.id}`)}>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:border-blue-100 transition-colors">
+                                                                    <ClipboardList size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-slate-700">{wo.title}</p>
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(wo.dateStart).toLocaleDateString()}</p>
+                                                                </div>
+                                                            </div>
+                                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border ${getOTStatusColor(wo.status)}`}>{wo.status}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-center py-8 text-xs font-bold text-slate-400 uppercase">Sin órdenes registradas</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Incidents (Siniestros) */}
+                                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden no-print">
+                                        <div className="p-6 flex items-center justify-between border-b border-slate-50">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-red-50 text-red-600 rounded-xl">
+                                                    <ShieldAlert size={20} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Registro de Siniestros</h3>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedAsset.incidents?.length || 0} Incidentes reportados</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setIsIncidentModalOpen(true)}
+                                                className="px-4 py-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg active:scale-95 transition-all"
+                                            >
+                                                Registrar Siniestro
+                                            </button>
+                                        </div>
+                                        <div className="p-6 space-y-4">
+                                            {selectedAsset.incidents && selectedAsset.incidents.length > 0 ? (
+                                                selectedAsset.incidents.map(inc => (
+                                                    <div key={inc.id} className="p-5 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-red-100 transition-all group">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-red-500">
+                                                                    <AlertTriangle size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-black text-slate-800 uppercase">{new Date(inc.date).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{inc.incidentNumber || 'S/N'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${inc.damageLevel === 'Grave' || inc.damageLevel === 'Destrucción Total' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                                                                    {inc.damageLevel}
+                                                                </span>
+                                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button onClick={() => handleEditIncident(inc)} className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-blue-500 transition-colors">
+                                                                        <Edit3 size={14} />
+                                                                    </button>
+                                                                    <button onClick={() => handleDeleteIncident(inc.id)} className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-xs text-slate-600 font-medium leading-relaxed mb-4">{inc.description}</p>
+                                                        {inc.cost > 0 && (
+                                                            <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase bg-white border border-slate-100 w-fit px-3 py-1 rounded-full">
+                                                                <Coins size={12} className="text-orange-500" />
+                                                                Costo: <span className="text-slate-800">${inc.cost.toLocaleString()}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-center py-10 opacity-30">
+                                                    <ShieldCheck size={48} className="mx-auto mb-3 text-slate-300" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sin antecedentes de siniestros</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
+
+                <IncidentModal
+                    isOpen={isIncidentModalOpen}
+                    onClose={() => {
+                        setIsIncidentModalOpen(false);
+                        setIsEditingIncident(false);
+                        setEditingIncidentId(null);
+                        setNewIncidentForm({ date: new Date().toISOString().split('T')[0], description: '', cost: 0, damageLevel: 'Leve', status: 'Reportado' });
+                    }}
+                    form={newIncidentForm}
+                    onChange={setNewIncidentForm}
+                    onSubmit={handleAddIncident}
+                    isEditing={isEditingIncident}
+                />
             </div>
         );
     }
@@ -1235,7 +1464,106 @@ const Furniture: React.FC = () => {
                     forceAssetType={true}
                 />
             </div>
+        </div>
+    );
+};
 
+const IncidentModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    form: Partial<AssetIncident>;
+    onChange: (form: Partial<AssetIncident>) => void;
+    onSubmit: () => void;
+    isEditing: boolean;
+}> = ({ isOpen, onClose, form, onChange, onSubmit, isEditing }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+            <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-black text-slate-800 tracking-tight">
+                            {isEditing ? 'Editar Siniestro' : 'Registrar Siniestro'}
+                        </h2>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fecha</label>
+                                <input
+                                    type="date"
+                                    value={form.date}
+                                    onChange={e => onChange({ ...form, date: e.target.value })}
+                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nivel de Daño</label>
+                                <select
+                                    value={form.damageLevel}
+                                    onChange={e => onChange({ ...form, damageLevel: e.target.value as any })}
+                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                >
+                                    <option value="Leve">Leve</option>
+                                    <option value="Moderado">Moderado</option>
+                                    <option value="Grave">Grave</option>
+                                    <option value="Destrucción Total">Destrucción Total</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Descripción del Evento</label>
+                            <textarea
+                                value={form.description}
+                                onChange={e => onChange({ ...form, description: e.target.value })}
+                                className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium h-24 resize-none"
+                                placeholder="Describa lo ocurrido..."
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Costo Estimado</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={form.cost}
+                                        onChange={e => onChange({ ...form, cost: parseFloat(e.target.value) })}
+                                        className="w-full p-3 pl-8 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                    />
+                                    <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nro. de Siniestro</label>
+                                <input
+                                    type="text"
+                                    value={form.incidentNumber || ''}
+                                    onChange={e => onChange({ ...form, incidentNumber: e.target.value })}
+                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                    placeholder="Opcional"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-8">
+                        <button onClick={onClose} className="flex-1 py-3 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
+                            Cancelar
+                        </button>
+                        <button onClick={onSubmit} className="flex-1 py-3 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-lg shadow-slate-200 active:scale-95 transition-transform">
+                            {isEditing ? 'Guardar Cambios' : 'Confirmar Registro'}
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
