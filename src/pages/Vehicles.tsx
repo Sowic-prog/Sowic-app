@@ -765,6 +765,7 @@ const Vehicles: React.FC = () => {
             } else {
                 const incident: AssetIncident = {
                     id: Math.random().toString(36).substr(2, 9),
+                    assetId: selectedAsset?.id || '',
                     date: newIncidentForm.date!,
                     description: newIncidentForm.description!,
                     damageLevel: (newIncidentForm.damageLevel as any) || 'Leve',

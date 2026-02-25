@@ -6,7 +6,7 @@ import {
   Handshake, Truck, LifeBuoy, Wrench, Calendar,
   FileText, BarChart3, Building2, LogOut, ChevronDown, Monitor, Hammer, ChevronsRight, UtilityPole, Grid,
   Tractor, Fan, Briefcase, Armchair, CheckCircle2,
-  HelpCircle
+  HelpCircle, Menu
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -71,10 +71,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const mobileNavItems = [
     { to: '/', icon: Home, label: 'Inicio' },
     { to: '/assets', icon: Grid, label: 'Activos' },
-    { to: 'create-action', icon: Plus, label: '', isAction: true },
     { to: '/reports', icon: BarChart3, label: 'Reportes' },
     { to: '/calendar', icon: Calendar, label: 'Calendario' },
-  ].filter(item => item.isAction || checkPermission(item.to));
+  ].filter(item => checkPermission(item.to));
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row max-w-7xl mx-auto shadow-2xl overflow-hidden relative font-sans text-slate-600">
@@ -195,23 +194,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-1.5 z-50 flex items-center justify-between shadow-xl rounded-t-2xl">
-        {mobileNavItems.map((item, index) => {
-          if (item.isAction) {
-            return (
-              <div key={index} className="relative -top-7">
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-orange-200 border-4 border-[#F8F9FA]">
-                  {isMenuOpen ? <X size={20} /> : <Plus size={24} />}
-                </button>
-              </div>
-            )
-          }
-          return (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex flex-col items-center justify-center w-10 h-10 ${isActive ? 'text-orange-500' : 'text-slate-300'}`}>
-              <item.icon size={22} />
-            </NavLink>
-          )
-        })}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2 z-50 flex items-center justify-center shadow-2xl rounded-t-2xl">
+        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-orange-600 shadow-lg border-2 border-orange-200">
+          <Menu size={28} />
+        </button>
       </div>
 
       {isMenuOpen && (
