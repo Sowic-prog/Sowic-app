@@ -5,7 +5,7 @@ import {
     Bell, Search, QrCode, ClipboardList, TrendingUp, AlertTriangle,
     Package, Users, ChevronRight, Truck, MoreHorizontal, Wrench,
     Bot, Handshake, LayoutGrid, HardHat, LifeBuoy, X, Folder, User, Wrench as WrenchIcon, Tag, Box,
-    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History, Grid, BarChart3, Calendar, HelpCircle
+    ScanLine, Camera, ArrowLeft, BellRing, Check, Settings, ShieldAlert, History, Grid, BarChart3, Calendar, HelpCircle, Menu
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,8 @@ const Dashboard: React.FC = () => {
     const [activeWorkOrders, setActiveWorkOrders] = useState<any[]>([]);
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    // Dynamic Notifications State
+    const [notifications, setNotifications] = useState<Notification[]>([]);
 
     // Fetch Data
     useEffect(() => {
@@ -49,14 +51,13 @@ const Dashboard: React.FC = () => {
                     { data: furnitureData },
                     { data: infraData }
                 ] = await Promise.all([
-                    supabase.from('vehicles').select('id, name, status, internal_id'),
-                    supabase.from('machinery').select('id, name, status, internal_id'),
+                    supabase.from('vehicles').select('id, name, status, internal_id, hours'),
+                    supabase.from('machinery').select('id, name, status, internal_id, hours'),
                     supabase.from('it_equipment').select('id, name, status, internal_id'),
                     supabase.from('mobiliario').select('id, name, status, internal_id'),
                     supabase.from('infrastructures').select('id, name, status, internal_id')
                 ]);
 
-                // Combine and normalize
                 const allAssets = [
                     ...(vehiclesData || []),
                     ...(machineryData || []),
@@ -75,8 +76,67 @@ const Dashboard: React.FC = () => {
 
                 if (woData) setActiveWorkOrders(woData);
 
-                // 3. Fetch Recent Activity (Latest created work orders)
-                // Removed invalid join with 'assets' table
+                // 3. Fetch Service Requests and Maintenance Events for Notifications
+                const [
+                    { data: serviceReqs },
+                    { data: mEvents },
+                    { data: mPlans }
+                ] = await Promise.all([
+                    supabase.from('service_requests').select('*').eq('status', 'Pendiente'),
+                    supabase.from('maintenance_events').select('*').neq('status', 'Completado'),
+                    supabase.from('maintenance_plans').select('id, asset_name, asset_id')
+                ]);
+
+                // 4. Generate Dynamic Notifications
+                const dynamicNotifications: Notification[] = [];
+                const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                const deletedIds = JSON.parse(localStorage.getItem('deleted_notifications') || '[]');
+
+                // Service Requests -> Notifications
+                if (serviceReqs) {
+                    serviceReqs.forEach(req => {
+                        if (deletedIds.includes(req.id)) return;
+                        dynamicNotifications.push({
+                            id: req.id,
+                            title: 'Nueva Solicitud',
+                            description: req.title,
+                            time: 'Pendiente',
+                            type: req.priority === 'Crítica' ? 'critical' : 'warning',
+                            read: readIds.includes(req.id),
+                            link: '/services'
+                        });
+                    });
+                }
+
+                // Maintenance Events -> Notifications (Close to date)
+                if (mEvents && mPlans) {
+                    const today = new Date();
+                    const sevenDaysLater = new Date();
+                    sevenDaysLater.setDate(today.getDate() + 7);
+
+                    mEvents.forEach(evt => {
+                        if (deletedIds.includes(evt.id)) return;
+                        const evtDate = new Date(evt.estimated_date);
+
+                        // If it's within 7 days or overdue
+                        if (evtDate <= sevenDaysLater) {
+                            const plan = mPlans.find(p => p.id === evt.plan_id);
+                            dynamicNotifications.push({
+                                id: evt.id,
+                                title: 'Mantenimiento Próximo',
+                                description: `${evt.title} para ${plan?.asset_name || 'Activo'}`,
+                                time: evtDate < today ? 'VENCIDO' : evt.estimated_date,
+                                type: evtDate < today ? 'critical' : 'warning',
+                                read: readIds.includes(evt.id),
+                                link: '/maintenance/plans'
+                            });
+                        }
+                    });
+                }
+
+                setNotifications(dynamicNotifications);
+
+                // 3. Fetch Recent Activity
                 const { data: activityData } = await supabase
                     .from('work_orders')
                     .select('id, title, status, created_at, asset_id')
@@ -84,7 +144,6 @@ const Dashboard: React.FC = () => {
                     .limit(5);
 
                 if (activityData) {
-                    // Manually map asset names
                     const mappedActivity = activityData.map((item: any) => {
                         const relatedAsset = allAssets.find((a: any) => a.id === item.asset_id);
                         return {
@@ -105,54 +164,18 @@ const Dashboard: React.FC = () => {
         fetchData();
     }, []);
 
-    // Mock Notifications Data
-    const [notifications, setNotifications] = useState<Notification[]>([
-        {
-            id: '1',
-            title: 'Vencimiento de Seguro',
-            description: 'El seguro de la Toyota Hilux [VHL-TYT-12] vence en 5 días.',
-            time: 'Hace 10 min',
-            type: 'critical',
-            read: false,
-            link: '/assets'
-        },
-        {
-            id: '2',
-            title: 'Mantenimiento Pendiente',
-            description: 'OT-2024-101 requiere aprobación de materiales.',
-            time: 'Hace 1 hora',
-            type: 'warning',
-            read: false,
-            link: '/maintenance/ot/OT-2024-101'
-        },
-        {
-            id: '3',
-            title: 'Stock Crítico: Filtros',
-            description: 'Quedan menos de 5 unidades de Filtro Aceite NH en Pañol.',
-            time: 'Hace 3 horas',
-            type: 'warning',
-            read: false,
-            link: '/inventory'
-        },
-        {
-            id: '4',
-            title: 'Traslado Completado',
-            description: 'El Compresor Atlas Copco ha llegado a Chubut.',
-            time: 'Ayer',
-            type: 'success',
-            read: true,
-            link: '/logistics'
-        }
-    ]);
-
     const unreadCount = notifications.filter(n => !n.read).length;
 
     const markAllAsRead = () => {
+        const readIds = notifications.map(n => n.id);
+        localStorage.setItem('read_notifications', JSON.stringify(readIds));
         setNotifications(notifications.map(n => ({ ...n, read: true })));
     };
 
     const deleteNotification = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        const deletedIds = JSON.parse(localStorage.getItem('deleted_notifications') || '[]');
+        localStorage.setItem('deleted_notifications', JSON.stringify([...deletedIds, id]));
         setNotifications(notifications.filter(n => n.id !== id));
     };
 
@@ -458,9 +481,15 @@ const Dashboard: React.FC = () => {
             {/* Header Orange */}
             <div className="bg-orange-500 pb-12 pt-6 px-6 rounded-b-[2.5rem] relative">
                 <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white/20 p-1.5 rounded-full backdrop-blur-sm">
-                            <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-orange-500 font-bold text-xs">SW</div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('sowic:toggle-sidebar'))}
+                            className="p-2 md:hidden text-white/90 hover:bg-white/10 rounded-xl transition-colors"
+                        >
+                            <Menu size={24} />
+                        </button>
+                        <div className="bg-white/20 p-1 rounded-xl backdrop-blur-sm">
+                            <img src="/logo.jpg" alt="SOWIC" className="w-8 h-8 rounded-lg object-cover" />
                         </div>
                         <div>
                             <h2 className="text-white/80 text-[10px] font-bold uppercase tracking-wider">SOWIC</h2>
@@ -484,7 +513,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* SEARCH INPUT */}
-                <div className="mt-8 relative z-[70]">
+                <div className="mt-8 relative z-10">
                     <div className={`flex items-center gap-3 bg-white px-5 py-4 rounded-2xl shadow-xl transition-all duration-300 ${isSearchFocused ? 'scale-105 ring-4 ring-white/20' : ''}`}>
                         <Search size={20} className={isSearchFocused ? 'text-orange-500' : 'text-slate-400'} />
                         <input

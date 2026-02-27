@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Car, Hammer, Monitor, UtilityPole, Building2,
     ChevronRight, Activity, Package, AlertTriangle,
-    Tractor, Fan, Armchair
+    Tractor, Fan, Armchair, Menu
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -121,9 +121,20 @@ const Assets = () => {
     return (
         <div className="p-6 space-y-8 bg-[#F8F9FA] min-h-screen">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">Mis Activos</h1>
-                    <p className="text-slate-500 font-medium">Panel general de gestión y categorías</p>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('sowic:toggle-sidebar'))}
+                        className="p-2 md:hidden text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"
+                    >
+                        <Menu size={24} />
+                    </button>
+                    <div className="md:hidden bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                        <img src="/logo.jpg" alt="SOWIC" className="w-8 h-8 rounded-lg object-cover" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Mis Activos</h1>
+                        <p className="text-slate-500 font-medium italic">Gestión de Categorías</p>
+                    </div>
                 </div>
                 <button
                     onClick={() => setIsImportModalOpen(true)}

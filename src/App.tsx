@@ -8,6 +8,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const Assets = React.lazy(() => import('./pages/Assets'));
 const Infrastructure = React.lazy(() => import('./pages/Infrastructure'));
 const Maintenance = React.lazy(() => import('./pages/Maintenance'));
+const MaintenanceHub = React.lazy(() => import('./pages/MaintenanceHub'));
 const MaintenancePlans = React.lazy(() => import('./pages/MaintenancePlans'));
 const WorkOrderDetail = React.lazy(() => import('./pages/WorkOrderDetail'));
 const ChecklistDetail = React.lazy(() => import('./pages/ChecklistDetail'));
@@ -21,6 +22,7 @@ const CalendarPage = React.lazy(() => import('./pages/Calendar'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Login = React.lazy(() => import('./pages/Login'));
 const Checklist = React.lazy(() => import('./pages/Checklist'));
+const NewChecklist = React.lazy(() => import('./pages/NewChecklist'));
 const Help = React.lazy(() => import('./pages/Help'));
 
 // New Asset Pages
@@ -66,12 +68,22 @@ const App: React.FC = () => {
               <Route path="/infrastructure" element={<Navigate to="/assets/infrastructure" replace />} />
               <Route path="/maintenance" element={
                 <Layout>
+                  <MaintenanceHub />
+                </Layout>
+              } />
+              <Route path="/maintenance/orders" element={
+                <Layout>
                   <Maintenance />
                 </Layout>
               } />
               <Route path="/checklist" element={
                 <Layout>
                   <Checklist />
+                </Layout>
+              } />
+              <Route path="/checklist/new" element={
+                <Layout>
+                  <NewChecklist />
                 </Layout>
               } />
 

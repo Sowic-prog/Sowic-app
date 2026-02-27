@@ -80,7 +80,7 @@ export interface Asset {
   internalId: string; // e.g., ACT-0042
   barcodeId: string; // 4-digit ID (Optional for Rented)
   name: string;
-  type: 'Equipos de Informática' | 'Instalaciones en infraestructuras' | 'Maquinaria' | 'Rodados' | 'Mobiliario' | 'Otros';
+  type: 'Equipos de Informática' | 'Instalaciones en infraestructuras' | 'Maquinaria' | 'Rodados' | 'Mobiliario' | 'Infraestructura' | 'Otros';
   description: string; // Keep for backward compatibility or short summary
   status: AssetStatus;
   ownership: AssetOwnership;
@@ -203,6 +203,8 @@ export interface Checklist {
   inspector: string;
   conformity: number; // 0-100
   items: ChecklistItem[];
+  type?: 'Semanal' | 'Completo';
+  metadata?: any;
 }
 
 export interface MaintenanceTask {

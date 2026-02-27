@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
     LifeBuoy, Clock, MapPin, AlertCircle, Plus, Filter, Search,
     ChevronLeft, Save, X, Edit3, Trash2, CheckCircle2, AlertTriangle,
-    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2, Truck, HardHat, Box, Laptop, Armchair, History, ThumbsUp, ThumbsDown
+    FileText, Calendar, ArrowRight, User, Wrench, ExternalLink, Bot, ChevronDown, Loader2, Truck, HardHat, Box, Laptop, Armchair, History, ThumbsUp, ThumbsDown, Menu
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ServiceRequest, Asset, Project, ServiceRequestLogEntry, ServiceRequestConformity } from '../types';
@@ -881,7 +881,18 @@ const Services: React.FC = () => {
         <div className="bg-[#F8F9FA] min-h-screen font-sans">
             <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-xl font-bold text-slate-800">Solicitudes de Servicios</h1>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('sowic:toggle-sidebar'))}
+                            className="p-2 md:hidden text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"
+                        >
+                            <Menu size={24} />
+                        </button>
+                        <div className="md:hidden bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                            <img src="/logo.jpg" alt="SOWIC" className="w-8 h-8 rounded-lg object-cover" />
+                        </div>
+                        <h1 className="text-xl font-bold text-slate-800">Solicitudes de Servicios</h1>
+                    </div>
                     <div className="flex gap-2">
                         <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Filtrar">
                             <Filter size={20} />
