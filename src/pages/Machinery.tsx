@@ -7,13 +7,15 @@ import {
     Tractor, Ruler, Wrench, Fuel, Truck,
     CheckCircle2, AlertCircle, Clock, FileCheck,
     CloudRain, DollarSign, Percent, Download, Upload,
+    ChevronUp, ChevronDown, Package,
     Image as ImageIcon, Printer, Share2, MoreHorizontal,
     ArrowUpRight, ArrowDownLeft, Zap, Battery, Gauge,
     Thermometer, Settings, ShieldAlert, FileType,
     Briefcase, UserCircle2, Building2, Coins, ScanLine, QrCode, ClipboardList, ClipboardCheck, CalendarClock, Paperclip, Camera, Bot,
-    ChevronUp, ChevronDown, Package,
 } from 'lucide-react';
 import AssetImportModal from '../components/AssetImportModal';
+import MultiPhotoUpload from '../components/MultiPhotoUpload';
+import PhotoGallery from '../components/PhotoGallery';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import { Asset, AssetStatus, AssetOwnership, Project } from '../types';
@@ -57,6 +59,7 @@ const mapAssetFromDB = (dbAsset: any): Asset => {
         expirations: dbAsset.expirations || [],
         incidents: dbAsset.incidents || [],
         documents: dbAsset.documents || [],
+        photos: dbAsset.photos || [],
     };
 };
 
@@ -92,7 +95,8 @@ const prepareAssetForDB = (asset: Partial<Asset>) => {
         chassis_number: asset.chassisNumber,
         engine_number: asset.engineNumber,
         expirations: asset.expirations || [],
-        incidents: asset.incidents || []
+        incidents: asset.incidents || [],
+        photos: asset.photos || []
     };
 };
 
@@ -201,7 +205,8 @@ const Machinery = () => {
         chassisNumber: '',
         engineNumber: '',
         insuranceProvider: '',
-        incidents: []
+        incidents: [],
+        photos: []
     });
 
     const [editFormData, setEditFormData] = useState<Partial<Asset>>({});
@@ -821,6 +826,17 @@ const Machinery = () => {
                                         {Object.values(AssetStatus).map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
+                            </div>
+
+                            {/* Multi-Photo Upload Section */}
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                                </h3>
+                                <MultiPhotoUpload
+                                    photos={newAssetData.photos || []}
+                                    onChange={(photos) => setNewAssetData(prev => ({ ...prev, photos }))}
+                                />
                             </div>
                         </div>
 
@@ -1594,6 +1610,17 @@ const Machinery = () => {
                                         <button onClick={addExpirationToEdit} className="col-span-2 bg-slate-800 text-white py-2 rounded-lg text-xs font-bold">Agregar Vencimiento</button>
                                     </div>
                                 </div>
+
+                                {/* Multi-Photo Upload Section (Edit mode) */}
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                        <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                                    </h3>
+                                    <MultiPhotoUpload
+                                        photos={editFormData.photos || []}
+                                        onChange={(photos) => setEditFormData(prev => ({ ...prev, photos }))}
+                                    />
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -1648,6 +1675,13 @@ const Machinery = () => {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Photo Gallery Section */}
+                                    {selectedAsset.photos && selectedAsset.photos.length > 0 && (
+                                        <div className="mt-6 animate-in fade-in zoom-in-95 duration-500">
+                                            <PhotoGallery photos={selectedAsset.photos} />
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-3 gap-3 mt-6">
                                         <div className="bg-white/5 p-3 rounded-xl backdrop-blur-sm border border-white/5">
@@ -2112,74 +2146,76 @@ const Machinery = () => {
                             </div>
 
                             {/* Modal de Vencimientos */}
-                            {isExpModalOpen && (
-                                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative">
-                                        <button
-                                            onClick={() => setIsExpModalOpen(false)}
-                                            className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
-                                        >
-                                            <X size={24} />
-                                        </button>
-
-                                        <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                                            <ShieldCheck className="text-orange-500" /> Agregar Vencimiento
-                                        </h2>
-
-                                        <div className="space-y-4">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo</label>
-                                                <select
-                                                    value={newExp.type}
-                                                    onChange={e => setNewExp({ ...newExp, type: e.target.value as any })}
-                                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800"
-                                                >
-                                                    <option value="ITV">ITV</option>
-                                                    <option value="RTO">RTO</option>
-                                                    <option value="VTV">VTV</option>
-                                                    <option value="Seguro">Seguro</option>
-                                                    <option value="Cédula Verde">Cédula Verde</option>
-                                                    <option value="Matafuegos">Matafuegos</option>
-                                                    <option value="Certificación">Certificación</option>
-                                                    <option value="Otro">Otro</option>
-                                                </select>
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fecha Vencimiento</label>
-                                                <input
-                                                    type="date"
-                                                    value={newExp.expirationDate}
-                                                    onChange={e => setNewExp({ ...newExp, expirationDate: e.target.value })}
-                                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Notas / Proveedor</label>
-                                                <input
-                                                    type="text"
-                                                    value={newExp.notes}
-                                                    onChange={e => setNewExp({ ...newExp, notes: e.target.value })}
-                                                    className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
-                                                    placeholder="Detalles adicionales..."
-                                                />
-                                            </div>
-
+                            {
+                                isExpModalOpen && (
+                                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                        <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative">
                                             <button
-                                                onClick={handleAddExpiration}
-                                                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 mt-4"
+                                                onClick={() => setIsExpModalOpen(false)}
+                                                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
                                             >
-                                                Guardar Vencimiento
+                                                <X size={24} />
                                             </button>
+
+                                            <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                                <ShieldCheck className="text-orange-500" /> Agregar Vencimiento
+                                            </h2>
+
+                                            <div className="space-y-4">
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo</label>
+                                                    <select
+                                                        value={newExp.type}
+                                                        onChange={e => setNewExp({ ...newExp, type: e.target.value as any })}
+                                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800"
+                                                    >
+                                                        <option value="ITV">ITV</option>
+                                                        <option value="RTO">RTO</option>
+                                                        <option value="VTV">VTV</option>
+                                                        <option value="Seguro">Seguro</option>
+                                                        <option value="Cédula Verde">Cédula Verde</option>
+                                                        <option value="Matafuegos">Matafuegos</option>
+                                                        <option value="Certificación">Certificación</option>
+                                                        <option value="Otro">Otro</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fecha Vencimiento</label>
+                                                    <input
+                                                        type="date"
+                                                        value={newExp.expirationDate}
+                                                        onChange={e => setNewExp({ ...newExp, expirationDate: e.target.value })}
+                                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Notas / Proveedor</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newExp.notes}
+                                                        onChange={e => setNewExp({ ...newExp, notes: e.target.value })}
+                                                        className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
+                                                        placeholder="Detalles adicionales..."
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    onClick={handleAddExpiration}
+                                                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 mt-4"
+                                                >
+                                                    Guardar Vencimiento
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )
+                            }
                         </>
                     )}
-                </div>
-            </div>
+                </div >
+            </div >
         );
     }
 

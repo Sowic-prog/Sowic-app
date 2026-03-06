@@ -13,6 +13,8 @@ import AssetImportModal from '../components/AssetImportModal';
 import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import MultiPhotoUpload from '../components/MultiPhotoUpload';
+import PhotoGallery from '../components/PhotoGallery';
 
 // Helper to map DB snake_case to TS camelCase
 const mapAssetFromDB = (dbAsset: any): Asset => ({
@@ -52,6 +54,7 @@ const mapAssetFromDB = (dbAsset: any): Asset => ({
     usefulLifeRemaining: 0,
     averageDailyUsage: 0,
     tti: 0,
+    photos: dbAsset.photos || [],
     documents: dbAsset.documents || [],
 });
 
@@ -99,7 +102,8 @@ const mapAssetToDB = (asset: Partial<Asset>) => {
         description: asset.description,
         ownership: asset.ownership,
         type: 'Instalaciones en infraestructuras', // Fixed type
-        functional_description: asset.functionalDescription
+        functional_description: asset.functionalDescription,
+        photos: asset.photos || []
     };
 };
 
@@ -156,6 +160,11 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
 
             <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100 relative">
                 <img src={asset.image} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+                {asset.photos && asset.photos.length > 0 && (
+                    <div className="absolute top-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Camera size={8} /> {asset.photos.length}
+                    </div>
+                )}
                 {asset.responsible && (
                     <div className="absolute bottom-0 right-0 left-0 bg-black/50 backdrop-blur-[2px] p-1 text-center">
                         <span className="text-[8px] text-white font-bold truncate block">{asset.responsible}</span>
@@ -264,7 +273,8 @@ const Installations: React.FC = () => {
         chassisNumber: '',
         engineNumber: '',
         insuranceProvider: '',
-        incidents: []
+        incidents: [],
+        photos: []
     });
     const [newExpirations, setNewExpirations] = useState<AssetExpiration[]>([]);
     const [newExpForm, setNewExpForm] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '' });
@@ -984,6 +994,16 @@ const Installations: React.FC = () => {
                             placeholder="Descripción detallada de la instalación..."
                         />
                     </div>
+
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Camera size={16} className="text-orange-500" /> Fotos de la Instalación
+                        </h3>
+                        <MultiPhotoUpload
+                            photos={newAssetData.photos || []}
+                            onChange={(photos) => setNewAssetData({ ...newAssetData, photos })}
+                        />
+                    </div>
                 </div>
             </div>
         );
@@ -1137,6 +1157,14 @@ const Installations: React.FC = () => {
                                         className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium h-24"
                                     />
                                 </div>
+
+                                <div className="col-span-2 space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fotos de la Instalación</label>
+                                    <MultiPhotoUpload
+                                        photos={editFormData.photos || []}
+                                        onChange={(photos) => setEditFormData({ ...editFormData, photos })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -1227,6 +1255,16 @@ const Installations: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Photos Gallery */}
+                                    {selectedAsset.photos && selectedAsset.photos.length > 0 && (
+                                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
+                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                                <Camera size={16} className="text-orange-500" /> Galería de Fotos
+                                            </h3>
+                                            <PhotoGallery photos={selectedAsset.photos} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Maintenance History */}

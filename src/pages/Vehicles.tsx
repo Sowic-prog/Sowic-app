@@ -10,6 +10,8 @@ import {
     HardHat, ScanLine, CalendarClock, Briefcase, Coins, Percent, FileType, AlertTriangle, CloudRain, Paperclip, FileCheck, Package
 } from 'lucide-react';
 import AssetImportModal from '../components/AssetImportModal';
+import MultiPhotoUpload from '../components/MultiPhotoUpload';
+import PhotoGallery from '../components/PhotoGallery';
 import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -49,6 +51,7 @@ const mapAssetFromDB = (dbAsset: any): Asset => ({
     image: dbAsset.image || '',
     responsible: dbAsset.responsible || '',
     supplier: dbAsset.supplier || '',
+    photos: dbAsset.photos || [],
 });
 
 const mapWorkOrderFromDB = (data: any) => ({
@@ -106,7 +109,8 @@ const mapAssetToDB = (asset: Partial<Asset>) => {
         regulatory_data: regulatoryData || {},
         average_daily_usage: averageDailyUsage,
         expirations: expirations || [],
-        incidents: incidents || []
+        incidents: incidents || [],
+        photos: asset.photos || []
     };
 };
 
@@ -181,7 +185,12 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
                     )}
                 </div>
 
-                <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
+                <h3 className="font-bold text-slate-800 text-base uppercase truncate pr-2 leading-tight tracking-wider">
+                    {asset.domainNumber || asset.name}
+                </h3>
+                {asset.domainNumber && (
+                    <p className="text-[10px] text-slate-500 font-medium truncate pr-2 leading-tight mt-0.5">{asset.name}</p>
+                )}
 
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
@@ -278,7 +287,8 @@ const Vehicles: React.FC = () => {
         chassisNumber: '',
         engineNumber: '',
         insuranceProvider: '',
-        incidents: []
+        incidents: [],
+        photos: []
     });
 
     // Auto-generate Internal ID on Create
@@ -525,7 +535,8 @@ const Vehicles: React.FC = () => {
         return (a.name || '').toLowerCase().includes(term) ||
             (a.internalId || '').toLowerCase().includes(term) ||
             (a.serial || '').toLowerCase().includes(term) ||
-            (a.barcodeId || '').toLowerCase().includes(term);
+            (a.barcodeId || '').toLowerCase().includes(term) ||
+            (a.domainNumber || '').toLowerCase().includes(term);
     }).sort((a, b) => {
         const term = searchTerm.toLowerCase().trim();
         if (!term) return 0;
@@ -1178,6 +1189,17 @@ const Vehicles: React.FC = () => {
                                     />
                                 </div>
                             )}
+
+                            {/* Multi-Photo Upload Section */}
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                                </h3>
+                                <MultiPhotoUpload
+                                    photos={newAssetData.photos || []}
+                                    onChange={(photos) => setNewAssetData(prev => ({ ...prev, photos }))}
+                                />
+                            </div>
                         </div>
 
                         {/* Financial */}
@@ -1891,6 +1913,17 @@ const Vehicles: React.FC = () => {
                                     <button onClick={addExpirationToEdit} className="col-span-2 bg-slate-800 text-white py-2 rounded-lg text-xs font-bold">Agregar Vencimiento</button>
                                 </div>
                             </div>
+
+                            {/* Multi-Photo Upload Section */}
+                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                                </h3>
+                                <MultiPhotoUpload
+                                    photos={editFormData.photos || []}
+                                    onChange={(photos) => setEditFormData(prev => ({ ...prev, photos }))}
+                                />
+                            </div>
                         </div>
                     ) : (
                         /* --- READ ONLY MODE (Bento Grid) --- */
@@ -1916,7 +1949,12 @@ const Vehicles: React.FC = () => {
                                             <img src={selectedAsset.image} className="w-full h-full object-cover" alt="Imagen del activo" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h2 className="text-xl font-bold leading-tight mb-1">{selectedAsset.name}</h2>
+                                            <h2 className="text-xl font-bold uppercase leading-tight tracking-wider mb-0.5">
+                                                {selectedAsset.domainNumber || selectedAsset.name}
+                                            </h2>
+                                            {selectedAsset.domainNumber && (
+                                                <p className="text-sm font-medium text-white/70 truncate mb-1">{selectedAsset.name}</p>
+                                            )}
                                             {currentAllocation ? (
                                                 <div className="mt-2 animate-in fade-in">
                                                     <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-0.5 flex items-center gap-1">
@@ -1944,6 +1982,13 @@ const Vehicles: React.FC = () => {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Photo Gallery Section */}
+                                    {selectedAsset.photos && selectedAsset.photos.length > 0 && (
+                                        <div className="mt-6 animate-in fade-in zoom-in-95 duration-500">
+                                            <PhotoGallery photos={selectedAsset.photos} />
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-3 gap-3 mt-6">
                                         <div className="bg-white/5 p-3 rounded-xl backdrop-blur-sm border border-white/5">
@@ -2473,9 +2518,10 @@ const Vehicles: React.FC = () => {
                                 </div>
                             )}
                         </>
-                    )}
-                </div>
-            </div>
+                    )
+                    }
+                </div >
+            </div >
         );
     }
 

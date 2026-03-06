@@ -125,6 +125,7 @@ export interface Asset {
   documents?: AssetDocument[]; // Documentación Adjunta
   averageDailyUsage?: number;
   regulatoryData?: RegulatoryData;
+  photos?: string[];
 }
 
 export interface WorkOrderUpdate {
@@ -251,6 +252,8 @@ export interface Project {
   assignedAssets: number;
   assignedStaff: number;
   comitente?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Staff {

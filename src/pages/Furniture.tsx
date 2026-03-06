@@ -13,6 +13,8 @@ import AssetImportModal from '../components/AssetImportModal';
 import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import MultiPhotoUpload from '../components/MultiPhotoUpload';
+import PhotoGallery from '../components/PhotoGallery';
 
 // Helper to map DB snake_case to TS camelCase
 const mapAssetFromDB = (dbAsset: any): Asset => ({
@@ -40,6 +42,7 @@ const mapAssetFromDB = (dbAsset: any): Asset => ({
     value: parseFloat(dbAsset.value) || 0,
     functionalDescription: dbAsset.functional_description || '',
     complementaryDescription: dbAsset.complementary_description || '',
+    photos: dbAsset.photos || [],
     type: 'Mobiliario'
 });
 
@@ -89,7 +92,8 @@ const mapAssetToDB = (asset: Partial<Asset>) => {
         type: 'Mobiliario',
         functional_description: asset.functionalDescription,
         complementary_description: asset.complementaryDescription,
-        value: asset.value
+        value: asset.value,
+        photos: asset.photos || []
     };
 };
 
@@ -146,6 +150,11 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
 
             <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-100 relative">
                 <img src={asset.image} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+                {asset.photos && asset.photos.length > 0 && (
+                    <div className="absolute top-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Camera size={8} /> {asset.photos.length}
+                    </div>
+                )}
                 {asset.responsible && (
                     <div className="absolute bottom-0 right-0 left-0 bg-black/50 backdrop-blur-[2px] p-1 text-center">
                         <span className="text-[8px] text-white font-bold truncate block">{asset.responsible}</span>
@@ -246,7 +255,8 @@ const Furniture: React.FC = () => {
         domainNumber: '',
 
         incidents: [],
-        functionalDescription: ''
+        functionalDescription: '',
+        photos: []
     });
     const [newExpirations, setNewExpirations] = useState<AssetExpiration[]>([]);
     const [newExpForm, setNewExpForm] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '' });
@@ -985,6 +995,16 @@ const Furniture: React.FC = () => {
                             placeholder="Descripción detallada..."
                         />
                     </div>
+
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Camera size={16} className="text-orange-500" /> Fotos del Activo
+                        </h3>
+                        <MultiPhotoUpload
+                            photos={newAssetData.photos || []}
+                            onChange={(photos) => setNewAssetData({ ...newAssetData, photos })}
+                        />
+                    </div>
                 </div>
             </div>
         );
@@ -1131,6 +1151,16 @@ const Furniture: React.FC = () => {
                                         aria-label="Descripción Funcional"
                                     />
                                 </div>
+
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                        <Camera size={16} className="text-orange-500" /> Fotos del Mobiliario
+                                    </h3>
+                                    <MultiPhotoUpload
+                                        photos={editFormData.photos || []}
+                                        onChange={(photos) => setEditFormData({ ...editFormData, photos })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -1243,6 +1273,16 @@ const Furniture: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Photos Gallery */}
+                                {selectedAsset.photos && selectedAsset.photos.length > 0 && (
+                                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                            <Camera size={16} className="text-orange-500" /> Galería de Fotos
+                                        </h3>
+                                        <PhotoGallery photos={selectedAsset.photos} />
+                                    </div>
+                                )}
 
                                 {/* Maintenance & History Accordion */}
                                 <div className="space-y-4">

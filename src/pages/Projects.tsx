@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     MapPin, Users, HardHat, ChevronRight, ChevronLeft, Save,
     Calendar, Folder, Archive, CheckCircle2, Clock, MoreVertical,
-    Truck, Package, Phone, Activity, Box, Search, AlertTriangle, Plus, Pencil
+    Truck, Package, Phone, Activity, Box, Search, AlertTriangle, Plus, Pencil, X
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { MOCK_PROJECTS, MOCK_ASSETS, MOCK_STAFF, MOCK_INVENTORY } from '../constants';
@@ -59,7 +59,9 @@ const mapProjectFromDB = (data: any): Project => ({
     assignedAssets: data.assigned_assets_count || 0,
     assignedStaff: data.assigned_staff_count || 0,
     responsible: data.responsible || 'Sin Asignar',
-    comitente: data.comitente || ''
+    comitente: data.comitente || '',
+    startDate: data.start_date || '',
+    endDate: data.end_date || ''
 });
 
 const mapProjectToDB = (project: Partial<Project>) => ({
@@ -69,6 +71,8 @@ const mapProjectToDB = (project: Partial<Project>) => ({
     location: project.location,
     responsible: project.responsible,
     comitente: project.comitente,
+    start_date: project.startDate || null,
+    end_date: project.endDate || null,
     // counts are usually calculated or ignored on insert if they are view-based, 
     // but if real columns:
     assigned_assets_count: project.assignedAssets || 0,
@@ -87,6 +91,9 @@ const Projects: React.FC = () => {
     const [projectStaff, setProjectStaff] = useState<Staff[]>([]);
     const [projectAssets, setProjectAssets] = useState<any[]>([]); // Extended Asset with dates
     const [projectInventory, setProjectInventory] = useState<InventoryItem[]>([]);
+    const [isAddingStaff, setIsAddingStaff] = useState(false);
+    const [allStaff, setAllStaff] = useState<Staff[]>([]);
+    const [staffSearchTerm, setStaffSearchTerm] = useState('');
 
     // New Project Form State
     const [newProjectData, setNewProjectData] = useState<Partial<Project>>({
@@ -95,7 +102,9 @@ const Projects: React.FC = () => {
         status: 'Planificación' as any, // temporal cast, mapped to Activa/Cerrada later if needed or update type
         responsible: '',
         comitente: '',
-        location: ''
+        location: '',
+        startDate: '',
+        endDate: ''
     });
 
     useEffect(() => {
@@ -141,6 +150,39 @@ const Projects: React.FC = () => {
             if (data) setProjectStaff(data.map(mapStaffFromDB));
         } catch (err) {
             console.error("Error fetching project staff:", err);
+        }
+    };
+
+    const fetchAllStaff = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('staff')
+                .select('*')
+                .order('name');
+            if (error) throw error;
+            if (data) setAllStaff(data.map(mapStaffFromDB));
+        } catch (err) {
+            console.error("Error fetching all staff:", err);
+        }
+    };
+
+    const handleAddStaffToProject = async (staff: Staff) => {
+        if (!selectedProject) return;
+
+        try {
+            const { error } = await supabase
+                .from('staff')
+                .update({ location: selectedProject.name })
+                .eq('id', staff.id);
+
+            if (error) throw error;
+
+            // Refresh project staff
+            fetchProjectStaff(selectedProject.name);
+            setIsAddingStaff(false);
+        } catch (err: any) {
+            console.error("Error anding staff to project:", err);
+            alert("Error al asignar personal: " + err.message);
         }
     };
 
@@ -259,7 +301,7 @@ const Projects: React.FC = () => {
                 const newProject = mapProjectFromDB(data);
                 setProjects([newProject, ...projects]);
                 setIsCreating(false);
-                setNewProjectData({ name: '', internalId: '', status: 'Planificación' as any, responsible: '', comitente: '', location: '' });
+                setNewProjectData({ name: '', internalId: '', status: 'Planificación' as any, responsible: '', comitente: '', location: '', startDate: '', endDate: '' });
                 alert("Proyecto creado exitosamente");
             }
         } catch (err: any) {
@@ -276,7 +318,9 @@ const Projects: React.FC = () => {
             status: selectedProject.status,
             responsible: selectedProject.responsible,
             comitente: selectedProject.comitente || '',
-            location: selectedProject.location
+            location: selectedProject.location,
+            startDate: selectedProject.startDate || '',
+            endDate: selectedProject.endDate || ''
         });
         setIsEditing(true);
     };
@@ -309,7 +353,7 @@ const Projects: React.FC = () => {
                 setProjects(updatedList);
                 setSelectedProject(updatedProject);
                 setIsEditing(false);
-                setNewProjectData({ name: '', internalId: '', status: 'Planificación' as any, responsible: '', comitente: '', location: '' });
+                setNewProjectData({ name: '', internalId: '', status: 'Planificación' as any, responsible: '', comitente: '', location: '', startDate: '', endDate: '' });
                 alert("Proyecto actualizado exitosamente");
             }
         } catch (err: any) {
@@ -423,6 +467,8 @@ const Projects: React.FC = () => {
                                 <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fecha de Inicio</label>
                                 <input
                                     type="date"
+                                    value={newProjectData.startDate}
+                                    onChange={(e) => setNewProjectData({ ...newProjectData, startDate: e.target.value })}
                                     className="w-full p-4 bg-white border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm font-medium shadow-sm text-slate-600"
                                     aria-label="Fecha de Inicio"
                                 />
@@ -431,6 +477,8 @@ const Projects: React.FC = () => {
                                 <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Fecha Finalización</label>
                                 <input
                                     type="date"
+                                    value={newProjectData.endDate}
+                                    onChange={(e) => setNewProjectData({ ...newProjectData, endDate: e.target.value })}
                                     className="w-full p-4 bg-white border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm font-medium shadow-sm text-slate-600"
                                     aria-label="Fecha Finalización"
                                 />
@@ -508,7 +556,18 @@ const Projects: React.FC = () => {
                             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
                                 <Users size={18} className="text-orange-500" /> Personal del Proyecto
                             </h3>
-                            <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{projectStaff.length}</span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{projectStaff.length}</span>
+                                {canEdit && (
+                                    <button
+                                        onClick={() => { fetchAllStaff(); setIsAddingStaff(true); }}
+                                        className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                                        aria-label="Agregar Personal"
+                                    >
+                                        <Plus size={18} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                             {projectStaff.map(person => (
@@ -625,19 +684,21 @@ const Projects: React.FC = () => {
                 </div>
 
                 {/* Progress / Timeline Card */}
-                <div className="bg-slate-800 p-6 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-orange-500 opacity-20 rounded-full blur-2xl"></div>
-                    <h3 className="font-bold text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Clock size={18} className="text-orange-500" /> Estado del Cronograma
-                    </h3>
-                    <div className="w-full bg-white/10 rounded-full h-3 mb-3 overflow-hidden">
-                        <div className={`h-full rounded-full ${isClosed ? 'bg-slate-400' : 'bg-orange-500'} w-[75%]`}></div>
+                {(selectedProject.startDate || selectedProject.endDate) && (
+                    <div className="bg-slate-800 p-6 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-orange-500 opacity-20 rounded-full blur-2xl"></div>
+                        <h3 className="font-bold text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Clock size={18} className="text-orange-500" /> Estado del Cronograma
+                        </h3>
+                        <div className="w-full bg-white/10 rounded-full h-3 mb-3 overflow-hidden">
+                            <div className={`h-full rounded-full ${isClosed ? 'bg-slate-400' : 'bg-orange-500'} w-[100%]`}></div>
+                        </div>
+                        <div className="flex justify-between text-xs font-bold text-white/60 uppercase tracking-tighter">
+                            <span>Inicio: {selectedProject.startDate ? new Date(selectedProject.startDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
+                            <span>Fin: {selectedProject.endDate ? new Date(selectedProject.endDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
+                        </div>
                     </div>
-                    <div className="flex justify-between text-xs font-bold text-white/60 uppercase tracking-tighter">
-                        <span>Inicio: 10 Ene 2024</span>
-                        <span>75% Completado</span>
-                    </div>
-                </div>
+                )}
 
                 {/* Close Project Action */}
                 {!isClosed ? (
@@ -652,6 +713,57 @@ const Projects: React.FC = () => {
                 ) : (
                     <div className="bg-slate-100 text-slate-500 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.1em] border border-slate-200 flex items-center justify-center gap-2 mt-8 opacity-70">
                         <CheckCircle2 size={18} /> Proyecto Finalizado y Archivado
+                    </div>
+                )}
+                {/* Staff Selection Modal */}
+                {isAddingStaff && (
+                    <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center animate-in fade-in duration-300">
+                        <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] p-8 animate-in slide-in-from-bottom-20 duration-300 shadow-2xl max-h-[80vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-800">Asignar Personal</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Seleccionar del listado general</p>
+                                </div>
+                                <button onClick={() => setIsAddingStaff(false)} className="p-2 bg-slate-100 rounded-full text-slate-400" aria-label="Cerrar">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="relative mb-6">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre o cargo..."
+                                    value={staffSearchTerm}
+                                    onChange={(e) => setStaffSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 text-sm font-medium"
+                                />
+                            </div>
+
+                            <div className="space-y-3">
+                                {allStaff
+                                    .filter(s =>
+                                        s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                                        s.role.toLowerCase().includes(staffSearchTerm.toLowerCase())
+                                    )
+                                    .map(staff => (
+                                        <div
+                                            key={staff.id}
+                                            onClick={() => handleAddStaffToProject(staff)}
+                                            className="p-4 bg-white border border-slate-100 rounded-2xl flex items-center gap-4 hover:border-orange-200 transition-colors cursor-pointer active:scale-[0.98]"
+                                        >
+                                            <img src={staff.avatar} className="w-10 h-10 rounded-xl object-cover" alt={staff.name} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-bold text-slate-800 truncate">{staff.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{staff.role}</p>
+                                            </div>
+                                            <div className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${staff.location === selectedProject.name ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                {staff.location === selectedProject.name ? 'Ya Asignado' : staff.location || 'Sin Ubicación'}
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

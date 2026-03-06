@@ -4,9 +4,12 @@ import {
     Building2, Zap, Lightbulb, PersonStanding, ChevronRight,
     MapPin, Calendar, AlertTriangle, CheckCircle2, FileText,
     ChevronLeft, ArrowRight, ShieldCheck, Ruler, Plus, Printer, Edit3, Save, X, Camera, Package,
-    Wrench, ChevronUp, ChevronDown, ClipboardList, Trash2, DollarSign
+    Wrench, ChevronUp, ChevronDown, ClipboardList, Trash2, DollarSign,
+    Image as ImageIcon
 } from 'lucide-react';
 import AssetImportModal from '../components/AssetImportModal';
+import MultiPhotoUpload from '../components/MultiPhotoUpload';
+import PhotoGallery from '../components/PhotoGallery';
 import { Asset, AssetStatus, AssetIncident } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +34,7 @@ const mapInfrastructureFromDB = (db: any): Asset => ({
     averageDailyUsage: 0,
     functionalDescription: db.functional_description || '',
     complementaryDescription: db.complementary_description || '',
+    photos: db.photos || [],
 });
 
 const mapWorkOrderFromDB = (data: any) => ({
@@ -78,6 +82,7 @@ const mapInfrastructureToDB = (infra: Partial<Asset>) => {
         regulatory_data: regulatoryData,
         functional_description: infra.functionalDescription,
         complementary_description: infra.complementaryDescription,
+        photos: infra.photos || [],
     };
 };
 
@@ -110,7 +115,8 @@ const Infrastructure: React.FC = () => {
         location: '',
         description: '',
         ownership: 'Propio',
-        image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400'
+        image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400',
+        photos: []
     });
 
     const [newIncidentForm, setNewIncidentForm] = useState<Partial<AssetIncident>>({
@@ -522,6 +528,17 @@ const Infrastructure: React.FC = () => {
                                 className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-medium min-h-[100px] resize-none"
                             />
                         </div>
+
+                        {/* Multi-Photo Upload Section */}
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
+                            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                            </h3>
+                            <MultiPhotoUpload
+                                photos={formData.photos || []}
+                                onChange={(photos) => setFormData(prev => ({ ...prev, photos }))}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -627,6 +644,17 @@ const Infrastructure: React.FC = () => {
                                     className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium resize-none min-h-[80px]"
                                 />
                             </div>
+
+                            {/* Multi-Photo Upload Section (Edit mode) */}
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <ImageIcon size={16} className="text-orange-500" /> Galería de Fotos
+                                </h3>
+                                <MultiPhotoUpload
+                                    photos={formData.photos || []}
+                                    onChange={(photos) => setFormData(prev => ({ ...prev, photos }))}
+                                />
+                            </div>
                         </div>
                     ) : (
                         <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
@@ -645,6 +673,13 @@ const Infrastructure: React.FC = () => {
                                     <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto md:mx-0">{selectedAsset.description}</p>
                                 </div>
                             </div>
+
+                            {/* Photo Gallery Section */}
+                            {selectedAsset.photos && selectedAsset.photos.length > 0 && (
+                                <div className="mt-6 animate-in fade-in zoom-in-95 duration-500">
+                                    <PhotoGallery photos={selectedAsset.photos} />
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -851,7 +886,7 @@ const Infrastructure: React.FC = () => {
                     </div>
                 </div>
 
-            </div>
+            </div >
         );
     }
 
