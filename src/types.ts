@@ -27,6 +27,7 @@ export interface AssetExpiration {
   type: 'ITV' | 'Seguro' | 'Cédula Verde' | 'Ruta' | 'Certificación' | 'Habilitación' | 'Otro';
   expirationDate: string; // YYYY-MM-DD
   notes?: string;
+  fileUrl?: string;
 }
 
 export interface AssetIncident {

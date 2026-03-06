@@ -82,35 +82,50 @@ const mapWorkOrderFromDB = (data: any) => ({
     closingData: data.closing_data
 });
 
-// Helper to map TS camelCase to DB snake_case
+// Helper to map TS camelCase to DB snake_case (explicit fields only, no ...rest spread)
 const mapAssetToDB = (asset: Partial<Asset>) => {
-    const {
-        internalId, barcodeId, dailyRate, originYear, usefulLifeRemaining,
-        accountingAccount, functionalDescription, complementaryDescription,
-        domainNumber, chassisNumber, engineNumber, insuranceProvider,
-        regulatoryData, averageDailyUsage, expirations, incidents, documents,
-        ...rest
-    } = asset;
-
     return {
-        ...rest,
-        internal_id: internalId,
-        barcode_id: barcodeId,
-        daily_rate: dailyRate,
-        origin_year: originYear,
-        useful_life_remaining: usefulLifeRemaining,
-        accounting_account: accountingAccount,
-        functional_description: functionalDescription,
-        complementary_description: complementaryDescription,
-        domain_number: domainNumber,
-        chassis_number: chassisNumber,
-        engine_number: engineNumber,
-        insurance_provider: insuranceProvider,
-        regulatory_data: regulatoryData || {},
-        average_daily_usage: averageDailyUsage,
-        expirations: expirations || [],
-        incidents: incidents || [],
-        photos: asset.photos || []
+        // Core identity
+        name: asset.name,
+        internal_id: asset.internalId,
+        barcode_id: asset.barcodeId,
+        type: asset.type,
+        serial: asset.serial,
+        // Status & assignment
+        status: asset.status,
+        ownership: asset.ownership,
+        location: asset.location,
+        responsible: asset.responsible,
+        supplier: asset.supplier,
+        // Media
+        image: asset.image,
+        photos: asset.photos || [],
+        // Descriptions
+        description: asset.functionalDescription || asset.name,
+        functional_description: asset.functionalDescription,
+        complementary_description: asset.complementaryDescription,
+        // Financial
+        value: asset.value,
+        daily_rate: asset.dailyRate,
+        tti: asset.tti,
+        accounting_account: asset.accountingAccount,
+        // Technical
+        brand: asset.brand,
+        model: asset.model,
+        year: asset.year,
+        origin_year: asset.originYear,
+        hours: asset.hours,
+        useful_life_remaining: asset.usefulLifeRemaining,
+        average_daily_usage: asset.averageDailyUsage,
+        // Vehicle-specific
+        domain_number: asset.domainNumber,
+        chassis_number: asset.chassisNumber,
+        engine_number: asset.engineNumber,
+        insurance_provider: asset.insuranceProvider,
+        // JSON columns
+        expirations: asset.expirations || [],
+        incidents: asset.incidents || [],
+        regulatory_data: asset.regulatoryData || {},
     };
 };
 
@@ -249,7 +264,7 @@ const Vehicles: React.FC = () => {
 
     // Edit form state
     const [editFormData, setEditFormData] = useState<Partial<Asset>>({});
-    const [addExpFormForEdit, setAddExpFormForEdit] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '' });
+    const [addExpFormForEdit, setAddExpFormForEdit] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // New Detail States
     const [assetWorkOrders, setAssetWorkOrders] = useState<any[]>([]);
@@ -322,11 +337,11 @@ const Vehicles: React.FC = () => {
     }, [newAssetData.functionalDescription, newAssetData.brand, newAssetData.model, isCreating]);
 
     const [newExpirations, setNewExpirations] = useState<AssetExpiration[]>([]);
-    const [newExpForm, setNewExpForm] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '' });
+    const [newExpForm, setNewExpForm] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // Expiration Modal State
     const [isExpModalOpen, setIsExpModalOpen] = useState(false);
-    const [newExp, setNewExp] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '' });
+    const [newExp, setNewExp] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // Collapsible states
     const [isPlansExpanded, setIsPlansExpanded] = useState(false);
@@ -613,7 +628,7 @@ const Vehicles: React.FC = () => {
                 const { id, ...payload } = dbPayload as any;
 
                 const { error } = await supabase
-                    .from('assets')
+                    .from('vehicles')
                     .update(payload)
                     .eq('id', selectedAsset.id);
 
@@ -640,16 +655,29 @@ const Vehicles: React.FC = () => {
             id: Math.random().toString(36).substr(2, 9),
             type: addExpFormForEdit.type as any,
             expirationDate: addExpFormForEdit.expirationDate!,
-            notes: addExpFormForEdit.notes
+            notes: addExpFormForEdit.notes,
+            fileUrl: addExpFormForEdit.fileUrl
         };
         const currentExpirations = editFormData.expirations || [];
         setEditFormData({ ...editFormData, expirations: [...currentExpirations, exp] });
-        setAddExpFormForEdit({ type: 'ITV', expirationDate: '', notes: '' });
+        setAddExpFormForEdit({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
     };
 
     const removeExpirationFromEdit = (id: string) => {
         const currentExpirations = editFormData.expirations || [];
         setEditFormData({ ...editFormData, expirations: currentExpirations.filter(e => e.id !== id) });
+    };
+
+    const handleEditExpFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    setAddExpFormForEdit(prev => ({ ...prev, fileUrl: ev.target?.result as string }));
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
     };
 
     // --- NEW ASSET LOGIC ---
@@ -685,10 +713,23 @@ const Vehicles: React.FC = () => {
             id: Math.random().toString(36).substr(2, 9),
             type: newExpForm.type as any,
             expirationDate: newExpForm.expirationDate!,
-            notes: newExpForm.notes
+            notes: newExpForm.notes,
+            fileUrl: newExpForm.fileUrl
         };
         setNewExpirations([...newExpirations, exp]);
-        setNewExpForm({ type: 'ITV', expirationDate: '', notes: '' });
+        setNewExpForm({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
+    };
+
+    const handleNewExpFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    setNewExpForm(prev => ({ ...prev, fileUrl: ev.target?.result as string }));
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
     };
 
     const removeExpiration = (id: string) => {
@@ -721,7 +762,7 @@ const Vehicles: React.FC = () => {
             const dbPayload = mapAssetToDB(newAssetBase);
 
             const { data, error } = await supabase
-                .from('assets')
+                .from('vehicles')
                 .insert(dbPayload)
                 .select()
                 .single();
@@ -789,7 +830,7 @@ const Vehicles: React.FC = () => {
             }
 
             const { error } = await supabase
-                .from('assets')
+                .from('vehicles')
                 .update({ incidents: updatedIncidents })
                 .eq('id', selectedAsset.id);
 
@@ -808,12 +849,8 @@ const Vehicles: React.FC = () => {
             setEditingIncidentId(null);
             setNewIncidentForm({
                 date: new Date().toISOString().split('T')[0],
-                description: '',
-                damageLevel: 'Leve',
-                cost: 0,
-                status: 'Reportado',
-                incidentNumber: '',
-                reportUrl: ''
+                description: '', damageLevel: 'Leve', cost: 0, status: 'Reportado',
+                incidentNumber: '', reportUrl: ''
             });
             alert(isEditingIncident ? "Siniestro actualizado correctamente." : "Siniestro registrado correctamente.");
         } catch (err: any) {
@@ -836,17 +873,13 @@ const Vehicles: React.FC = () => {
             const updatedIncidents = (selectedAsset.incidents || []).filter(inc => inc.id !== incidentId);
 
             const { error } = await supabase
-                .from('assets')
+                .from('vehicles')
                 .update({ incidents: updatedIncidents })
                 .eq('id', selectedAsset.id);
 
             if (error) throw error;
 
-            const updatedAsset = {
-                ...selectedAsset,
-                incidents: updatedIncidents
-            };
-
+            const updatedAsset = { ...selectedAsset, incidents: updatedIncidents };
             setAssets(prev => prev.map(a => a.id === selectedAsset.id ? updatedAsset : a));
             setSelectedAsset(updatedAsset);
             alert("Siniestro eliminado correctamente.");
@@ -868,13 +901,14 @@ const Vehicles: React.FC = () => {
                 id: crypto.randomUUID(),
                 type: newExp.type || 'ITV',
                 expirationDate: newExp.expirationDate,
-                notes: newExp.notes || ''
+                notes: newExp.notes || '',
+                fileUrl: newExp.fileUrl
             };
 
             const updatedExpirations = [...(selectedAsset.expirations || []), newExpiration];
 
             const { error } = await supabase
-                .from('assets')
+                .from('vehicles')
                 .update({ expirations: updatedExpirations })
                 .eq('id', selectedAsset.id);
 
@@ -884,9 +918,21 @@ const Vehicles: React.FC = () => {
             setSelectedAsset(updatedAsset);
             setAssets(assets.map(a => a.id === updatedAsset.id ? updatedAsset : a));
             setIsExpModalOpen(false);
-            setNewExp({ type: 'ITV', expirationDate: '', notes: '' });
+            setNewExp({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
         } catch (err: any) {
             alert('Error al agregar vencimiento: ' + err.message);
+        }
+    };
+
+    const handleExpModalFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    setNewExp(prev => ({ ...prev, fileUrl: ev.target?.result as string }));
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
         }
     };
 
@@ -1295,14 +1341,20 @@ const Vehicles: React.FC = () => {
                                         className="flex-1 p-3 bg-white border-none rounded-xl text-xs font-medium"
                                         aria-label="Notas"
                                     />
-                                    <button
-                                        onClick={addExpiration}
-                                        disabled={!newExpForm.expirationDate}
-                                        aria-label="Agregar Vencimiento"
-                                        className="bg-white p-3 rounded-xl shadow-sm text-slate-400 hover:text-orange-500"
-                                    >
-                                        <Plus size={16} />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <label className="bg-white p-3 rounded-xl shadow-sm text-slate-400 hover:text-orange-500 cursor-pointer">
+                                            <Paperclip size={16} className={newExpForm.fileUrl ? "text-green-500" : ""} />
+                                            <input type="file" className="hidden" onChange={handleNewExpFileUpload} />
+                                        </label>
+                                        <button
+                                            onClick={addExpiration}
+                                            disabled={!newExpForm.expirationDate}
+                                            aria-label="Agregar Vencimiento"
+                                            className="bg-white p-3 rounded-xl shadow-sm text-slate-400 hover:text-orange-500"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1314,9 +1366,16 @@ const Vehicles: React.FC = () => {
                                                 <p className="text-xs font-bold text-slate-800">{exp.type}</p>
                                                 <p className="text-[10px] text-slate-500">Vence: {exp.expirationDate} • {exp.notes}</p>
                                             </div>
-                                            <button onClick={() => removeExpiration(exp.id)} className="text-slate-300 hover:text-red-500" aria-label="Eliminar">
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {exp.fileUrl && (
+                                                    <a href={exp.fileUrl} download={`vencimiento_${exp.type}.pdf`} className="text-slate-400 hover:text-blue-500" title="Descargar archivo">
+                                                        <Download size={16} />
+                                                    </a>
+                                                )}
+                                                <button onClick={() => removeExpiration(exp.id)} className="text-slate-300 hover:text-red-500" aria-label="Eliminar">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1886,7 +1945,14 @@ const Vehicles: React.FC = () => {
                                                 <p className="text-xs font-bold text-slate-700">{exp.type}</p>
                                                 <p className="text-[10px] text-slate-500">{exp.expirationDate}</p>
                                             </div>
-                                            <button onClick={() => removeExpirationFromEdit(exp.id)} className="text-red-400" aria-label="Eliminar vencimiento"><X size={16} /></button>
+                                            <div className="flex items-center gap-2">
+                                                {exp.fileUrl && (
+                                                    <a href={exp.fileUrl} download={`vencimiento_${exp.type}.pdf`} className="text-slate-400 hover:text-blue-500" title="Descargar archivo">
+                                                        <Download size={16} />
+                                                    </a>
+                                                )}
+                                                <button onClick={() => removeExpirationFromEdit(exp.id)} className="text-red-400" aria-label="Eliminar vencimiento"><X size={16} /></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1910,7 +1976,13 @@ const Vehicles: React.FC = () => {
                                         className="p-2 bg-slate-50 rounded-lg text-xs"
                                         aria-label="Fecha de Vencimiento"
                                     />
-                                    <button onClick={addExpirationToEdit} className="col-span-2 bg-slate-800 text-white py-2 rounded-lg text-xs font-bold">Agregar Vencimiento</button>
+                                    <div className="flex gap-2">
+                                        <label className="flex-1 bg-slate-100 p-2 rounded-lg text-slate-400 hover:text-orange-500 cursor-pointer flex justify-center items-center">
+                                            <Paperclip size={16} className={addExpFormForEdit.fileUrl ? "text-green-500" : ""} />
+                                            <input type="file" className="hidden" onChange={handleEditExpFileUpload} />
+                                        </label>
+                                        <button onClick={addExpirationToEdit} className="flex-[3] bg-slate-800 text-white py-2 rounded-lg text-xs font-bold">Agregar Vencimiento</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2475,11 +2547,10 @@ const Vehicles: React.FC = () => {
                                                     onChange={e => setNewExp({ ...newExp, type: e.target.value as any })}
                                                     className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800"
                                                 >
-                                                    <option value="ITV">ITV</option>
-                                                    <option value="RTO">RTO</option>
-                                                    <option value="VTV">VTV</option>
+                                                    <option value="ITV">ITV / RTO</option>
                                                     <option value="Seguro">Seguro</option>
                                                     <option value="Cédula Verde">Cédula Verde</option>
+                                                    <option value="Habilitación">Habilitación</option>
                                                     <option value="Matafuegos">Matafuegos</option>
                                                     <option value="Certificación">Certificación</option>
                                                     <option value="Otro">Otro</option>
@@ -2507,9 +2578,18 @@ const Vehicles: React.FC = () => {
                                                 />
                                             </div>
 
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Archivo Adjunto</label>
+                                                <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${newExp.fileUrl ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-200 text-slate-500 hover:border-orange-300 hover:text-orange-500'}`}>
+                                                    {newExp.fileUrl ? <CheckCircle2 size={16} /> : <Paperclip size={16} />}
+                                                    <span className="text-xs font-bold">{newExp.fileUrl ? 'Archivo adjunto ✓' : 'Adjuntar PDF / Imagen'}</span>
+                                                    <input type="file" className="hidden" accept=".pdf,image/*" onChange={handleExpModalFileUpload} />
+                                                </label>
+                                            </div>
+
                                             <button
                                                 onClick={handleAddExpiration}
-                                                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 mt-4"
+                                                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 mt-2"
                                             >
                                                 Guardar Vencimiento
                                             </button>
