@@ -343,6 +343,8 @@ const Vehicles: React.FC = () => {
     // Expiration Modal State
     const [isExpModalOpen, setIsExpModalOpen] = useState(false);
     const [newExp, setNewExp] = useState<Partial<AssetExpiration>>({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
+    const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     // Collapsible states
     const [isPlansExpanded, setIsPlansExpanded] = useState(false);
@@ -371,7 +373,12 @@ const Vehicles: React.FC = () => {
 
             console.log("Vehicles fetched:", assetsData?.length, assetsData);
 
-            if (assetsError) throw assetsError;
+            if (assetsError) {
+                setFetchError(assetsError.message || JSON.stringify(assetsError));
+                throw assetsError;
+            } else {
+                setFetchError(null);
+            }
 
             // 2. Fetch Active Allocations
             const today = new Date().toISOString().split('T')[0];
@@ -403,9 +410,9 @@ const Vehicles: React.FC = () => {
                 });
                 setAssets(mappedAssets);
             }
-        } catch (err: any) {
-            console.error('Error fetching assets:', err);
-            setError('Error al cargar activos: ' + err.message);
+        } catch (error: any) {
+            console.error('Error fetching data:', error);
+            setFetchError(error.message || String(error));
         } finally {
             setLoading(false);
         }
