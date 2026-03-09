@@ -1,25 +1,14 @@
-const fs = require('fs');
-const path = 'src/pages/Vehicles.tsx';
-try {
-    const content = fs.readFileSync(path, 'utf8');
-    // Normalize line endings to LF to avoid issues with split
-    const lines = content.replace(/\r\n/g, '\n').split('\n');
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-    // Check if we have enough lines to avoid errors
-    if (lines.length < 1200) {
-        console.error(`File has only ${lines.length} lines. Expected at least 1201.`);
-        process.exit(1);
-    }
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const newLines = [
-        ...lines.slice(0, 807),
-        '            {/* PLACEHOLDER_FOR_NEW_FORM */}',
-        ...lines.slice(1200)
-    ];
-
-    fs.writeFileSync(path, newLines.join('\n'), 'utf8');
-    console.log('File truncated successfully.');
-} catch (err) {
-    console.error(err);
-    process.exit(1);
+async function check() {
+    const { data, error } = await supabase.from('vehicles').select('id, type, name, internal_id');
+    console.log(data);
 }
+
+check();

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Camera, X, Plus, Image as ImageIcon } from 'lucide-react';
+import { compressImage } from '../utils/imageCompression';
 
 interface MultiPhotoUploadProps {
     photos: string[];
@@ -14,21 +15,22 @@ const MultiPhotoUpload: React.FC<MultiPhotoUploadProps> = ({
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const filesArray = Array.from(e.target.files);
             const remainingSlots = maxPhotos - photos.length;
             const filesToProcess = filesArray.slice(0, remainingSlots);
 
-            filesToProcess.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    if (ev.target?.result) {
-                        onChange([...photos, ev.target.result as string]);
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
+            try {
+                const compressedPhotos = await Promise.all(
+                    filesToProcess.map(file => compressImage(file))
+                );
+
+                onChange([...photos, ...compressedPhotos]);
+            } catch (error) {
+                console.error("Error compressing images:", error);
+                alert("Hubo un error al procesar las imágenes. Por favor, intenta de nuevo.");
+            }
         }
         // Reset input
         if (fileInputRef.current) {

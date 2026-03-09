@@ -12,6 +12,7 @@ import {
 import AssetImportModal from '../components/AssetImportModal';
 import MultiPhotoUpload from '../components/MultiPhotoUpload';
 import PhotoGallery from '../components/PhotoGallery';
+import { compressImage } from '../utils/imageCompression';
 import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -38,7 +39,7 @@ const mapAssetFromDB = (dbAsset: any): Asset => ({
     // Ensure arrays are initialized
     expirations: dbAsset.expirations || [],
     incidents: dbAsset.incidents || [],
-    type: 'Rodados', // Hardcoded for Vehicles page
+    type: dbAsset.type || 'Rodados', // Use DB type, fallback to Rodados
     hours: dbAsset.hours || 0, // Default to 0 to avoid undefined error
     value: dbAsset.value || 0,
     tti: dbAsset.tti || 0,
@@ -368,6 +369,8 @@ const Vehicles: React.FC = () => {
                 // .eq('type', 'Rodados') // Removed
                 .order('created_at', { ascending: false });
 
+            console.log("Vehicles fetched:", assetsData?.length, assetsData);
+
             if (assetsError) throw assetsError;
 
             // 2. Fetch Active Allocations
@@ -536,8 +539,11 @@ const Vehicles: React.FC = () => {
     }, [location, assets]);
 
     const filteredAssets = assets.filter(a => {
-        // Ensure strictly Rodados just in case
-        if (a.type !== 'Rodados') return false;
+        // Handle legacy type values if they are undefined.
+        // The query itself only returned type 'Rodados' earlier but now we select all.
+        // Actually we do not need this check if we know we fetch from vehicles.
+        // Let's ensure we are case-insensitive or tolerant.
+        if (a.type && a.type.toLowerCase() !== 'rodados') return false;
 
         // Ownership Filter
         if (assetTab === 'owned' && a.ownership !== 'Propio') return false;
@@ -775,7 +781,7 @@ const Vehicles: React.FC = () => {
                 setIsCreating(false);
                 // Reset form
                 setNewAssetData({
-                    name: '', internalId: '', barcodeId: '', type: 'Maquinaria', status: AssetStatus.OPERATIONAL,
+                    name: '', internalId: '', barcodeId: '', type: 'Rodados', status: AssetStatus.OPERATIONAL,
                     ownership: 'Propio', supplier: '', brand: '', model: '', serial: '', year: new Date().getFullYear(), location: 'Pañol Central',
                     image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=400',
                     dailyRate: 0, value: 0, hours: 0, domainNumber: '', responsible: '',
@@ -788,6 +794,46 @@ const Vehicles: React.FC = () => {
         } catch (err: any) {
             console.error('Error creating asset:', err);
             alert("Error al crear activo: " + err.message);
+        }
+    };
+
+    const handleQuickPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!selectedAsset || !e.target.files) return;
+
+        try {
+            const filesArray = Array.from(e.target.files);
+            const currentPhotos = selectedAsset.photos || [];
+
+            // Comprimir nuevas fotos
+            const newCompressedPhotos = await Promise.all(
+                filesArray.map(file => compressImage(file))
+            );
+
+            const updatedPhotos = [...currentPhotos, ...newCompressedPhotos];
+
+            // Update en base de datos
+            const { error } = await supabase
+                .from('vehicles')
+                .update({ photos: updatedPhotos })
+                .eq('id', selectedAsset.id);
+
+            if (error) throw error;
+
+            // Actualizar estado local
+            const updatedAsset = { ...selectedAsset, photos: updatedPhotos };
+            setSelectedAsset(updatedAsset);
+            setAssets(prev => prev.map(a => a.id === selectedAsset.id ? updatedAsset : a));
+
+            alert("Fotos subidas exitosamente.");
+
+        } catch (err: any) {
+            console.error("Error al subir fotos:", err);
+            alert("Error al subir fotos: " + err.message);
+        }
+
+        // Resetear input
+        if (e.target) {
+            e.target.value = '';
         }
     };
 
@@ -2056,11 +2102,37 @@ const Vehicles: React.FC = () => {
                                     </div>
 
                                     {/* Photo Gallery Section */}
-                                    {selectedAsset.photos && selectedAsset.photos.length > 0 && (
-                                        <div className="mt-6 animate-in fade-in zoom-in-95 duration-500">
-                                            <PhotoGallery photos={selectedAsset.photos} />
+                                    <div className="mt-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="text-xs font-bold text-white uppercase tracking-widest opacity-80 flex items-center gap-2">
+                                                <ImageIcon size={16} /> Galería de Fotos
+                                            </h3>
+
+                                            {canEdit && (
+                                                <label className="flex items-center gap-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full cursor-pointer transition-colors backdrop-blur-sm shadow-sm border border-white/10">
+                                                    <Plus size={14} />
+                                                    <span>Subir Fotos</span>
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        multiple
+                                                        onChange={handleQuickPhotoUpload}
+                                                    />
+                                                </label>
+                                            )}
                                         </div>
-                                    )}
+
+                                        {selectedAsset.photos && selectedAsset.photos.length > 0 ? (
+                                            <div className="bg-white/5 rounded-[2rem] p-4 backdrop-blur-sm border border-white/10">
+                                                <PhotoGallery photos={selectedAsset.photos} />
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-center p-6 bg-white/5 rounded-3xl border border-white/5 border-dashed">
+                                                <p className="text-sm font-medium text-white/50">No hay fotos guardadas.</p>
+                                            </div>
+                                        )}
+                                    </div>
 
                                     <div className="grid grid-cols-3 gap-3 mt-6">
                                         <div className="bg-white/5 p-3 rounded-xl backdrop-blur-sm border border-white/5">
