@@ -614,48 +614,59 @@ const Personnel: React.FC = () => {
       </div>
 
       {/* Staff List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {filteredStaff.map(staff => (
-          <div key={staff.id} className="bg-white p-5 rounded-3xl border border-slate-50 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
+          <div key={staff.id} className="bg-white p-3 md:p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
             {staff.auth && (
-              <div className="absolute top-0 right-0 p-2 opacity-50">
-                <Shield size={16} className="text-orange-500" />
+              <div className="absolute top-2 right-2 p-1 opacity-50 md:hidden">
+                <Shield size={14} className="text-orange-500" />
               </div>
             )}
-            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setSelectedStaffDetailId(staff.id)}>
-              <div className="relative shrink-0">
-                <img src={staff.avatar} alt={staff.name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" />
-                <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(staff.status)}`}></span>
-              </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-slate-800 truncate leading-tight">{staff.name}</h3>
+            <div className="flex items-center flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedStaffDetailId(staff.id)}>
+              <div className="flex items-center gap-3 sm:gap-4 w-full">
+                <div className="relative shrink-0">
+                  <img src={staff.avatar} alt={staff.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover border border-slate-100 shadow-sm" />
+                  <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${getStatusColor(staff.status)}`}></span>
                 </div>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">{staff.role}</p>
 
-                <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  <MapPin size={12} className="text-orange-400" />
-                  {staff.location === '-' ? 'Sin Ubicación' : staff.location}
+                <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 sm:gap-4 items-center">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm sm:text-base text-slate-800 truncate">{staff.name}</h3>
+                      {staff.auth && <span title="Tiene acceso al sistema" className="hidden md:flex items-center"><Shield size={12} className="text-orange-500 shrink-0" /></span>}
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">{staff.role}</p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 font-medium">
+                    <MapPin size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{staff.location === '-' ? 'Sin Ubicación' : staff.location}</span>
+                  </div>
+
+                  <div className="hidden lg:flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 font-medium">
+                    <Phone size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{staff.phone || '-'}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {canEdit && (
-              <div className="flex gap-3 mt-4 pt-4 border-t border-slate-50">
+              <div className="flex gap-2 justify-end shrink-0 mt-3 md:mt-0 pt-3 md:pt-0 border-t border-slate-50 md:border-none">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleOpenEdit(staff); }}
-                  className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                  className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors flex items-center justify-center"
                   title="Editar Perfil"
                 >
-                  <Edit size={18} />
+                  <Edit size={16} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteStaff(staff.id); }}
-                  className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
                   title="Eliminar Colaborador"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={16} />
                 </button>
               </div>
             )}
@@ -800,8 +811,24 @@ const Personnel: React.FC = () => {
               <div className="pt-20 px-8 pb-8 space-y-8">
 
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800">{selectedStaffDetail.name}</h2>
-                  <p className="text-slate-500 font-medium">{selectedStaffDetail.role}</p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-800">{selectedStaffDetail.name}</h2>
+                      <p className="text-slate-500 font-medium">{selectedStaffDetail.role}</p>
+                    </div>
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          setSelectedStaffDetailId(null);
+                          handleOpenEdit(selectedStaffDetail);
+                        }}
+                        className="p-2.5 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex items-center gap-2 font-bold text-sm"
+                      >
+                        <Edit size={16} />
+                        Editar
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-2 mt-3">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedStaffDetail.status === 'Disponible' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
                       {selectedStaffDetail.status}

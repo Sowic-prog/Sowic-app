@@ -173,6 +173,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       <span>Mantenimiento Preventivo</span>
                     </NavLink>
                   )}
+                  {checkPermission('/checklist') && (
+                    <NavLink to="/checklist" className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isActive ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                      <CheckCircle2 size={18} />
+                      <span>Checklist</span>
+                    </NavLink>
+                  )}
                 </div>
               </div>
             </div>
@@ -358,6 +364,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <ShieldCheck size={18} />
                         <span>Mantenimiento Preventivo</span>
                       </NavLink>
+                      {checkPermission('/checklist') && (
+                        <NavLink
+                          to="/checklist"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={({ isActive }) => `flex items-center gap-4 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:bg-slate-50'}`}
+                        >
+                          <CheckCircle2 size={18} />
+                          <span>Checklist</span>
+                        </NavLink>
+                      )}
+
                     </div>
                   </div>
                 </div>

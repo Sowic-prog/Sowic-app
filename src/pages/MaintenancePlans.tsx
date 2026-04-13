@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenancePlan, MaintenanceEvent, MaintenanceTask, Asset } from '../types';
 import { supabase } from '../supabaseClient';
+import { databaseService } from '../services/databaseService';
 
 // --- MAPPERS ---
 const mapEventFromDB = (e: any): MaintenanceEvent => ({
@@ -201,99 +202,28 @@ const MaintenancePlans: React.FC = () => {
     const fetchPlans = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('maintenance_plans')
-                .select('*')
-                .order('created_at', { ascending: false });
+            const data = await databaseService.getMaintenanceData();
+            
+            let plans = data.plans.map(mapPlanFromDB);
 
-            if (error) throw error;
+            // Robust Manual Fetch for Events (Stitched in databaseService or logic below)
+            const eventsData = data.events;
+            if (eventsData) {
+                const eventsByPlan = eventsData.reduce((acc: any, evt: any) => {
+                    if (!acc[evt.plan_id]) acc[evt.plan_id] = [];
+                    acc[evt.plan_id].push(mapEventFromDB(evt));
+                    return acc;
+                }, {});
 
-            let plans = data ? data.map(mapPlanFromDB) : [];
-
-            // Robust Manual Fetch for Events
-            if (plans.length > 0) {
-                const planIds = plans.map(p => p.id);
-                const { data: eventsData, error: eventsError } = await supabase
-                    .from('maintenance_events')
-                    .select('*')
-                    .in('plan_id', planIds);
-
-                if (eventsError) console.error("Error fetching events manually:", eventsError);
-
-                if (eventsData) {
-                    const eventsByPlan = eventsData.reduce((acc: any, evt: any) => {
-                        if (!acc[evt.plan_id]) acc[evt.plan_id] = [];
-                        acc[evt.plan_id].push(mapEventFromDB(evt));
-                        return acc;
-                    }, {});
-
-                    plans = plans.map(p => ({
-                        ...p,
-                        events: eventsByPlan[p.id] || []
-                    }));
-                }
+                plans = plans.map(p => ({
+                    ...p,
+                    events: eventsByPlan[p.id] || []
+                }));
             }
 
-            console.log("Plans with stitched events:", plans);
             setPlans(plans);
-
-            // Fetch Assets from all tables
-            const [
-                { data: vehiclesData, error: vehiclesError },
-                { data: machineryData, error: machineryError },
-                { data: itData, error: itError },
-                { data: furnitureData, error: furnitureError },
-                { data: infraData, error: infraError }
-            ] = await Promise.all([
-                supabase.from('vehicles').select('*'),
-                supabase.from('machinery').select('*'),
-                supabase.from('it_equipment').select('*'),
-                supabase.from('mobiliario').select('*'),
-                supabase.from('infrastructures').select('*')
-            ]);
-
-            if (vehiclesError) console.error("Error loading vehicles:", vehiclesError);
-            if (machineryError) console.error("Error loading machinery:", machineryError);
-            if (itError) console.error("Error loading it_equipment:", itError);
-            if (furnitureError) console.error("Error loading furniture:", furnitureError);
-            if (infraError) console.error("Error loading infrastructures:", infraError);
-
-            const allAssets: Asset[] = [
-                ...(vehiclesData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
-                ...(machineryData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
-                ...(itData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
-                ...(furnitureData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
-                ...(infraData || []).map((db: any) => ({
-                    ...db,
-                    id: db.id,
-                    internalId: db.internal_id,
-                    barcodeId: db.barcode_id,
-                    name: db.name,
-                    description: db.description,
-                    location: db.location,
-                    status: db.status,
-                    image: db.image,
-                    ownership: db.ownership,
-                    dailyRate: db.daily_rate,
-                    regulatoryData: db.regulatory_data || undefined,
-                    type: 'Instalaciones en infraestructuras' as const,
-                    hours: 0,
-                    averageDailyUsage: 0,
-                    category: 'Inmueble/Infraestructura',
-                    functionalDescription: db.functional_description,
-                    complementaryDescription: db.complementary_description,
-                    expirations: [],
-                    incidents: []
-                } as Asset))
-            ];
-
-            console.log("Combined All Assets:", allAssets);
-            setAssets(allAssets);
-
-            // Fetch Work Orders
-            const { data: woData, error: woError } = await supabase.from('work_orders').select('*');
-            if (woError) throw woError;
-            if (woData) setWorkOrders(woData);
+            setAssets(data.assets);
+            setWorkOrders(data.workOrders);
 
         } catch (err) {
             console.error('Error fetching plans:', err);

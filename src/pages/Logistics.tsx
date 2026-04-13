@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     Truck, MapPin, Calendar, ArrowRight, Camera, Plus, Check,
@@ -103,7 +103,8 @@ const Logistics: React.FC = () => {
             const allAssets: any[] = [];
             const mapAsset = (db: any, type: string) => ({
                 id: db.id, name: db.name || db.model || 'Activo', internalId: db.internal_id || db.id?.slice(0, 8) || 'S/ID',
-                location: db.location, status: db.status, type
+                location: db.location, status: db.status, type,
+                domainNumber: db.domain_number
             });
 
             try {
@@ -260,6 +261,7 @@ const Logistics: React.FC = () => {
                 id: formData.assetId || 'new',
                 code: assetData?.internalId || 'S/ID',
                 name: formData.assetName,
+                domainNumber: assetData?.domainNumber,
                 type: formData.type || 'Movimiento',
                 meter: formData.meterReading || 0,
                 conformity: formData.conformity || 100
@@ -275,6 +277,7 @@ const Logistics: React.FC = () => {
                     id: a.assetId,
                     code: assetData?.internalId || 'S/ID',
                     name: a.assetName,
+                    domainNumber: assetData?.domainNumber,
                     type: 'Asignación' as const,
                     meter: 0,
                     conformity: 100,
@@ -290,6 +293,7 @@ const Logistics: React.FC = () => {
                     id: t.assetId,
                     code: assetData?.internalId || 'S/ID',
                     name: t.assetName,
+                    domainNumber: assetData?.domainNumber,
                     type: t.type,
                     meter: t.meterReading,
                     conformity: t.conformity || 100,
@@ -526,7 +530,10 @@ const Logistics: React.FC = () => {
                                             {sel && <Check size={14} strokeWidth={4} />}
                                         </div>
                                         <div className="flex-1">
-                                            <p className={`font-bold text-sm ${sel ? 'text-orange-900' : 'text-slate-700'}`}>{asset.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className={`font-bold text-sm ${sel ? 'text-orange-900' : 'text-slate-700'}`}>{asset.name}</p>
+                                                {asset.domainNumber && <span className="text-[9px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded uppercase">{asset.domainNumber}</span>}
+                                            </div>
                                             <p className="text-[10px] text-slate-400 uppercase font-black">{asset.internalId} • {asset.location}</p>
                                         </div>
                                     </div>
@@ -665,7 +672,10 @@ const Logistics: React.FC = () => {
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div>
-                                                        <p className="text-base font-black text-slate-800">{asset.name}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-base font-black text-slate-800">{asset.name}</p>
+                                                            {asset.domainNumber && <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded uppercase">{asset.domainNumber}</span>}
+                                                        </div>
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Inspección OK: {asset.conformity || 100}%</p>
                                                     </div>
                                                 </td>

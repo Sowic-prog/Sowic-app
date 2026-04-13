@@ -12,6 +12,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-        persistSession: false // FORCE ANON: We use custom table-based auth, so we don't want Supabase Auth sessions interfering with RLS.
+        persistSession: true 
     }
 });

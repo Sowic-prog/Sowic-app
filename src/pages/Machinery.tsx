@@ -16,9 +16,10 @@ import {
 import AssetImportModal from '../components/AssetImportModal';
 import MultiPhotoUpload from '../components/MultiPhotoUpload';
 import PhotoGallery from '../components/PhotoGallery';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../supabaseClient';
 import { Asset, AssetStatus, AssetOwnership, Project } from '../types';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
+import { databaseService } from '../services/databaseService';
 import { getNextInternalId } from '../utils/assetUtils';
 
 /* --- Helper Functions & Components --- */
@@ -134,7 +135,14 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                            {asset.domainNumber && (
+                                <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-md border border-orange-200 uppercase">
+                                    {asset.domainNumber}
+                                </span>
+                            )}
+                        </div>
                         {asset.barcodeId && <span className="text-[9px] font-bold text-slate-500 font-mono">{asset.barcodeId}</span>}
                     </div>
                     {asset.ownership === 'Alquilado' && (
@@ -142,7 +150,12 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
                     )}
                 </div>
 
-                <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight">{asset.name}</h3>
+                <h3 className="font-bold text-slate-800 text-sm truncate pr-2 leading-tight uppercase tracking-wider">
+                    {asset.domainNumber || asset.name}
+                </h3>
+                {asset.domainNumber && (
+                    <p className="text-[9px] text-slate-400 font-medium truncate pr-2 mt-0.5">{asset.name}</p>
+                )}
 
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
@@ -213,15 +226,15 @@ const Machinery = () => {
     const [dbStaff, setDbStaff] = useState<any[]>([]);
 
     // Expirations State (Create Mode)
-    const [newExpirations, setNewExpirations] = useState<{ id: string, type: string, expirationDate: string, notes: string }[]>([]);
-    const [newExpForm, setNewExpForm] = useState({ type: 'ITV', expirationDate: '', notes: '' });
+    const [newExpirations, setNewExpirations] = useState<{ id: string, type: string, expirationDate: string, notes: string, fileUrl?: string }[]>([]);
+    const [newExpForm, setNewExpForm] = useState({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // Expirations State (Edit/View Mode)
     const [isExpModalOpen, setIsExpModalOpen] = useState(false);
-    const [newExp, setNewExp] = useState({ type: 'ITV', expirationDate: '', notes: '' });
+    const [newExp, setNewExp] = useState({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // Expirations State (Edit Mode - List)
-    const [addExpFormForEdit, setAddExpFormForEdit] = useState({ type: 'ITV', expirationDate: '', notes: '' });
+    const [addExpFormForEdit, setAddExpFormForEdit] = useState({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
 
     // Incidents State
     const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -280,45 +293,31 @@ const Machinery = () => {
     const fetchAssets = async () => {
         setLoading(true);
         try {
-            // 1. Fetch Assets
-            const { data: assetsData, error: assetsError } = await supabase
-                .from('machinery') // Changed from 'assets'
-                .select('*');
-
-            if (assetsError) throw assetsError;
+            // 1. Fetch Assets via Service (Filtered for Machinery)
+            const allAssets = await databaseService.getAllAssets();
+            const machineryData = allAssets.filter(a => a.category === 'Equipo/Maquinaria' || a.type === 'Maquinaria');
 
             // 2. Fetch Active Allocations
             const today = new Date().toISOString().split('T')[0];
-            const { data: allocationsData, error: allocationsError } = await supabase
+            const { data: allocationsData } = await supabase
                 .from('asset_allocations')
                 .select('*, projects(name)')
                 .lte('start_date', today)
                 .gte('end_date', today)
                 .eq('status', 'Activo');
 
-            if (allocationsError) {
-                console.error('Error fetching allocations:', allocationsError);
-            }
-
-            if (assetsData) {
-                const mappedAssets = assetsData.map(dbAsset => {
-                    const baseAsset = mapAssetFromDB(dbAsset);
-
-                    // Find active allocation
-                    const allocation = allocationsData?.find(a => a.asset_id === baseAsset.id);
-
-                    if (allocation) {
-                        return {
-                            ...baseAsset,
-                            location: allocation.projects?.name || baseAsset.location,
-                        };
-                    }
-                    return baseAsset;
-                });
-                setAssets(mappedAssets);
-                setFilteredAssets(mappedAssets);
-            }
-
+            const mappedAssets = machineryData.map(asset => {
+                const allocation = allocationsData?.find(a => a.asset_id === asset.id);
+                if (allocation) {
+                    return {
+                        ...asset,
+                        location: allocation.projects?.name || asset.location,
+                    };
+                }
+                return asset;
+            });
+            setAssets(mappedAssets);
+            setFilteredAssets(mappedAssets);
         } catch (err) {
             console.error('Error fetching assets:', err);
         } finally {
@@ -496,11 +495,35 @@ const Machinery = () => {
     const addExpiration = () => {
         if (!newExpForm.expirationDate) return;
         setNewExpirations([...newExpirations, { id: Math.random().toString(), ...newExpForm }]);
-        setNewExpForm({ type: 'ITV', expirationDate: '', notes: '' });
+        setNewExpForm({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
     };
 
     const removeExpiration = (id: string) => {
         setNewExpirations(newExpirations.filter(e => e.id !== id));
+    };
+
+    const handleNewExpFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    setNewExpForm(prev => ({ ...prev, fileUrl: ev.target?.result as string }));
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const handleExpModalFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    setNewExp(prev => ({ ...prev, fileUrl: ev.target?.result as string }));
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
     };
 
     const handleCreateAsset = async () => {
@@ -515,8 +538,8 @@ const Machinery = () => {
                 ...newAssetData,
                 expirations: newExpirations as any[]
             };
-            const toInsert = prepareAssetForDB(assetWithExps);
-            const { data: assetData, error: assetError } = await supabase.from('assets').insert(toInsert).select().single();
+            const toInsert = prepareAssetForDB(assetWithExps) as any;
+            const { data: assetData, error: assetError } = await supabase.from('machinery').insert(toInsert).select().single();
 
             if (assetError) throw assetError;
 
@@ -548,8 +571,8 @@ const Machinery = () => {
     const saveAssetChanges = async () => {
         if (!selectedAsset || !editFormData.id) return;
         try {
-            const toUpdate = prepareAssetForDB(editFormData);
-            const { error } = await supabase.from('assets').update(toUpdate).eq('id', selectedAsset.id);
+            const toUpdate = prepareAssetForDB(editFormData) as any;
+            const { error } = await supabase.from('machinery').update(toUpdate).eq('id', selectedAsset.id);
             if (error) throw error;
 
             alert("Activo actualizado");
@@ -557,8 +580,8 @@ const Machinery = () => {
             fetchAssets();
 
             // Refresh selected asset
-            const { data } = await supabase.from('assets').select('*').eq('id', selectedAsset.id).single();
-            if (data) setSelectedAsset(mapAssetFromDB(data));
+            const { data } = await supabase.from('machinery').select('*').eq('id', selectedAsset.id).single();
+            if (data) setSelectedAsset(databaseService.mapAssetFromDB(data, 'Equipo/Maquinaria'));
 
         } catch (err: any) {
             console.error(err);
@@ -638,7 +661,8 @@ const Machinery = () => {
                 asset_id: selectedAsset.id,
                 type: newExp.type,
                 expiration_date: newExp.expirationDate,
-                notes: newExp.notes
+                notes: newExp.notes,
+                file_url: newExp.fileUrl
             });
             if (error) throw error;
 
@@ -646,7 +670,7 @@ const Machinery = () => {
             const { data } = await supabase.from('assets').select('*, asset_incidents(*), asset_expirations(*)').eq('id', selectedAsset.id).single();
             if (data) setSelectedAsset(mapAssetFromDB(data));
             setIsExpModalOpen(false);
-            setNewExp({ type: 'ITV', expirationDate: '', notes: '' });
+            setNewExp({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
         } catch (err: any) {
             alert(err.message);
         }
@@ -670,7 +694,7 @@ const Machinery = () => {
             ...prev,
             expirations: [...(prev.expirations || []), newExpItem]
         }));
-        setAddExpFormForEdit({ type: 'ITV', expirationDate: '', notes: '' });
+        setAddExpFormForEdit({ type: 'ITV', expirationDate: '', notes: '', fileUrl: '' });
     };
 
     const removeExpirationFromEdit = (id: string) => {
@@ -1142,13 +1166,20 @@ const Machinery = () => {
                                     className="flex-1 p-3 bg-white border-none rounded-xl text-xs font-medium"
                                     aria-label="Notas"
                                 />
-                                <button
-                                    onClick={addExpiration}
-                                    disabled={!newExpForm.expirationDate}
-                                    aria-label="Agregar Vencimiento"
-                                >
-                                    <Plus size={16} />
-                                </button>
+                                <div className="flex gap-2">
+                                    <label className="bg-white p-3 rounded-xl shadow-sm text-slate-400 hover:text-orange-500 cursor-pointer">
+                                        <Paperclip size={16} className={newExpForm.fileUrl ? "text-green-500" : ""} />
+                                        <input type="file" className="hidden" onChange={handleNewExpFileUpload} />
+                                    </label>
+                                    <button
+                                        onClick={addExpiration}
+                                        disabled={!newExpForm.expirationDate}
+                                        aria-label="Agregar Vencimiento"
+                                        className="bg-white p-3 rounded-xl shadow-sm text-slate-400 hover:text-orange-500"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1647,7 +1678,12 @@ const Machinery = () => {
                                             <img src={selectedAsset.image} className="w-full h-full object-cover" alt="Imagen del activo" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h2 className="text-xl font-bold leading-tight mb-1">{selectedAsset.name}</h2>
+                                            <h2 className="text-xl font-bold uppercase leading-tight tracking-wider mb-0.5">
+                                                {selectedAsset.domainNumber || selectedAsset.name}
+                                            </h2>
+                                            {selectedAsset.domainNumber && (
+                                                <p className="text-sm font-medium text-white/70 truncate mb-1">{selectedAsset.name}</p>
+                                            )}
                                             {currentAllocation ? (
                                                 <div className="mt-2 animate-in fade-in">
                                                     <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-0.5 flex items-center gap-1">
@@ -1817,9 +1853,16 @@ const Machinery = () => {
                                                         <p className="text-[10px] text-slate-400">{exp.notes}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Vence</p>
-                                                    <p className="text-xs font-bold text-red-500">{exp.expirationDate}</p>
+                                                <div className="flex items-center gap-4 text-right">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Vence</p>
+                                                        <p className="text-xs font-bold text-red-500">{exp.expirationDate}</p>
+                                                    </div>
+                                                    {exp.fileUrl && (
+                                                        <a href={exp.fileUrl} download={`vencimiento_${exp.type}.pdf`} className="p-2 bg-white text-blue-500 hover:bg-blue-50 rounded-xl shadow-sm border border-slate-100 transition-colors" title="Descargar archivo">
+                                                            <Download size={16} />
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))
@@ -1918,7 +1961,7 @@ const Machinery = () => {
                                     <span className="text-xs font-bold uppercase">Crear OT</span>
                                 </button>
                                 <button
-                                    onClick={() => navigate('/maintenance', { state: { action: 'createChecklist', assetId: selectedAsset.id } })}
+                                    onClick={() => navigate('/checklist/new', { state: { assetId: selectedAsset.id } })}
                                     className="bg-white border border-slate-200 text-slate-600 p-4 rounded-2xl flex flex-col items-center gap-2 shadow-sm active:scale-95 transition-transform hover:border-orange-200 hover:text-orange-500"
                                 >
                                     <ClipboardCheck size={24} />
@@ -2199,6 +2242,15 @@ const Machinery = () => {
                                                         className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-medium"
                                                         placeholder="Detalles adicionales..."
                                                     />
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Archivo Adjunto</label>
+                                                    <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${newExp.fileUrl ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-200 text-slate-500 hover:border-orange-300 hover:text-orange-500'}`}>
+                                                        {newExp.fileUrl ? <CheckCircle2 size={16} /> : <Paperclip size={16} />}
+                                                        <span className="text-xs font-bold">{newExp.fileUrl ? 'Archivo adjunto ✓' : 'Adjuntar PDF / Imagen'}</span>
+                                                        <input type="file" className="hidden" accept=".pdf,image/*" onChange={handleExpModalFileUpload} />
+                                                    </label>
                                                 </div>
 
                                                 <button

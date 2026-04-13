@@ -47,6 +47,7 @@ const ChecklistDetail: React.FC = () => {
                     inspector: data.inspector,
                     conformity: data.conformity,
                     items: data.items || [],
+                    domainNumber: data.metadata?.domainNumber || '',
                     type: data.metadata?.type || 'Completo',
                     metadata: data.metadata || {}
                 });
@@ -116,7 +117,14 @@ const ChecklistDetail: React.FC = () => {
                     <div className={`mb-4 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${checklist.type === 'Semanal' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
                         {checklist.type}
                     </div>
-                    <h2 className="text-xl font-black text-slate-800 text-center mb-1">{checklist.assetName}</h2>
+                    <h2 className="text-xl font-black text-slate-800 text-center mb-1">
+                        {checklist.assetName}
+                        {(checklist as any).domainNumber && (
+                            <span className="block mt-1 text-orange-600 text-sm font-black bg-orange-50 px-3 py-1 rounded-xl border border-orange-100 w-fit mx-auto">
+                                { (checklist as any).domainNumber}
+                            </span>
+                        )}
+                    </h2>
                     <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
                         <MapPin size={12} className="text-orange-500" />
                         Ubicación registrada

@@ -54,10 +54,10 @@ const Reports: React.FC = () => {
                 // Fetch Assets
                 const { data: assetData, error: assetError } = await supabase
                     .from('assets')
-                    .select('id, name, location, value');
+                    .select('id, name, location, value, domain_number');
 
                 if (assetError) throw assetError;
-                setAssets(assetData || []);
+                setAssets((assetData || []).map(a => ({ ...a, domainNumber: a.domain_number })));
 
                 // Fetch Projects
                 const { data: projData, error: projError } = await supabase
@@ -303,11 +303,14 @@ const Reports: React.FC = () => {
         const costs: Record<string, number> = {};
 
         filteredWorkOrders.forEach(wo => {
+            const asset = assets.find(a => a.id === wo.asset_id);
             const name = wo.asset_name || 'Desconocido';
+            const domain = asset?.domainNumber ? ` - ${asset.domainNumber}` : '';
+            const key = `${name}${domain}`;
             const woCost = (wo.expenses || []).reduce((acc: number, curr: any) => acc + (curr.totalCost || 0), 0);
 
-            if (!costs[name]) costs[name] = 0;
-            costs[name] += woCost;
+            if (!costs[key]) costs[key] = 0;
+            costs[key] += woCost;
         });
 
         return Object.entries(costs)
@@ -760,10 +763,24 @@ const Reports: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredWorkOrders.flatMap(wo => (wo.expenses || []).map((exp: any, i: number) => ({ ...exp, woTitle: wo.title, date: wo.date_start }))).map((item: any, i: number) => (
+                                    {filteredWorkOrders.flatMap(wo => {
+                                        const asset = assets.find(a => a.id === wo.asset_id);
+                                        return (wo.expenses || []).map((exp: any) => ({ 
+                                            ...exp, 
+                                            woTitle: wo.title, 
+                                            date: wo.date_start,
+                                            domainNumber: asset?.domainNumber 
+                                        }));
+                                    }).map((item: any, i: number) => (
                                         <tr key={i} className="bg-white border-b hover:bg-slate-50">
                                             <td className="px-6 py-4 font-medium">{new Date(item.date).toLocaleDateString()}</td>
-                                            <td className="px-6 py-4">{item.description} <span className="text-xs text-slate-400 block">{item.woTitle}</span></td>
+                                            <td className="px-6 py-4">
+                                                {item.description} 
+                                                <span className="text-xs text-slate-400 block">
+                                                    OT: {item.woTitle} 
+                                                    {item.domainNumber && <span className="ml-2 text-orange-600 font-bold">• {item.domainNumber}</span>}
+                                                </span>
+                                            </td>
                                             <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-100 rounded text-xs font-bold">{item.category}</span></td>
                                             <td className="px-6 py-4 text-right font-bold text-slate-800">${item.totalCost?.toLocaleString()}</td>
                                         </tr>

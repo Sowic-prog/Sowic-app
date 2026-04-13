@@ -15,6 +15,7 @@ import { GoogleGenAI } from "@google/genai";
 
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { databaseService } from '../services/databaseService';
 
 const mapAssetFromDB = (dbAsset: any): Asset => ({
     ...dbAsset,
@@ -74,6 +75,7 @@ interface PreventiveTask {
     time: string;
     frequency: 'Diaria' | 'Semanal' | 'Mensual';
     nextDue: string;
+    domainNumber?: string;
 }
 
 const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPriorityColor, canEdit }: any) => {
@@ -84,7 +86,9 @@ const WorkOrderListItem = React.memo(({ order, onClick, onEdit, onDelete, getPri
             <div>
                 <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{order.id}</span>
                 <h4 className="font-bold text-slate-800 text-lg leading-tight mt-0.5">{order.title}</h4>
-                <p className="text-xs text-slate-500 mt-1">{order.assetName}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                    {order.assetName} {order.domainNumber && <span className="text-orange-600 font-bold ml-1">• {order.domainNumber}</span>}
+                </p>
             </div>
             <div className="pt-3 mt-3 border-t border-slate-50 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><CalendarIcon size={14} /> {order.dateStart}</span>
@@ -119,7 +123,7 @@ const Maintenance: React.FC = () => {
     const location = useLocation();
     const { checkPermission } = useAuth();
     const canEdit = checkPermission('/maintenance', 'edit');
-    const [activeTab, setActiveTab] = useState<'orders' | 'checklists' | 'predictive' | 'preventive'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'predictive' | 'preventive'>('orders');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -173,66 +177,29 @@ const Maintenance: React.FC = () => {
     const [activePhotoItemId, setActivePhotoItemId] = useState<string | null>(null);
     const [analyzingItemId, setAnalyzingItemId] = useState<string | null>(null);
 
-    // Fetch Data from Supabase
+    // Fetch Data from databaseService
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
+                const data = await databaseService.getMaintenanceData();
+                
+                const enrichedWorkOrders = data.workOrders.map((wo: any) => {
+                    const mapped = mapWorkOrderFromDB(wo);
+                    const asset = data.assets.find(a => a.id === wo.asset_id);
+                    return { ...mapped, domainNumber: asset?.domainNumber };
+                });
+                
+                const enrichedChecklists = data.checklists.map((chk: any) => {
+                    const mapped = mapChecklistFromDB(chk);
+                    const asset = data.assets.find(a => a.id === chk.asset_id);
+                    return { ...mapped, domainNumber: asset?.domainNumber };
+                });
 
-                // Work Orders
-                const { data: woData } = await supabase.from('work_orders').select('*').order('created_at', { ascending: false });
-                if (woData) setWorkOrders(woData.map(mapWorkOrderFromDB));
-
-                // Checklists
-                const { data: chkData } = await supabase.from('checklists').select('*').order('created_at', { ascending: false });
-                if (chkData) setChecklists(chkData.map(mapChecklistFromDB));
-
-                // Assets & Infrastructures (for dropdowns)
-                const [
-                    { data: vehiclesData },
-                    { data: machineryData },
-                    { data: itData },
-                    { data: furnitureData },
-                    { data: infraData }
-                ] = await Promise.all([
-                    supabase.from('vehicles').select('*'),
-                    supabase.from('machinery').select('*'),
-                    supabase.from('it_equipment').select('*'),
-                    supabase.from('mobiliario').select('*'),
-                    supabase.from('infrastructures').select('*')
-                ]);
-
-                const allAssets: Asset[] = [
-                    ...(vehiclesData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Rodados' as const, category: 'Vehículo' })),
-                    ...(machineryData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Maquinaria' as const, category: 'Equipo/Maquinaria' })),
-                    ...(itData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Equipos de Informática' as const, category: 'Equipos' })),
-                    ...(furnitureData || []).map(a => ({ ...mapAssetFromDB(a), type: 'Mobiliario' as const, category: 'Mobiliario' })),
-                    ...(infraData || []).map((db: any) => ({
-                        ...db,
-                        id: db.id,
-                        internalId: db.internal_id,
-                        barcodeId: db.barcode_id,
-                        name: db.name,
-                        description: db.description,
-                        location: db.location,
-                        status: db.status,
-                        image: db.image,
-                        ownership: db.ownership,
-                        dailyRate: db.daily_rate,
-                        regulatoryData: db.regulatory_data || undefined,
-                        type: 'Instalaciones en infraestructuras' as const,
-                        hours: 0,
-                        averageDailyUsage: 0,
-                        category: 'Inmueble/Infraestructura',
-                        functionalDescription: db.functional_description,
-                        complementaryDescription: db.complementary_description,
-                        expirations: [],
-                        incidents: []
-                    } as Asset))
-                ];
-
-                setAssets(allAssets);
-
+                setAssets(data.assets);
+                setWorkOrders(enrichedWorkOrders);
+                setChecklists(enrichedChecklists);
+                
                 // Staff (for dropdowns)
                 const { data: stfData } = await supabase.from('staff').select('*');
                 if (stfData) setStaff(stfData as any);
@@ -259,35 +226,10 @@ const Maintenance: React.FC = () => {
     const analyzeMaintenanceNeeds = async () => {
         setIsAnalyzingIA(true);
         try {
-            const [
-                { data: vehData },
-                { data: machData },
-                { data: itData },
-                { data: furnData },
-                { data: infraData },
-                { data: plansData },
-                { data: eventsData },
-                { data: checklistData },
-                { data: woData }
-            ] = await Promise.all([
-                supabase.from('vehicles').select('*'),
-                supabase.from('machinery').select('*'),
-                supabase.from('it_equipment').select('*'),
-                supabase.from('mobiliario').select('*'),
-                supabase.from('infrastructures').select('*'),
-                supabase.from('maintenance_plans').select('*'),
-                supabase.from('maintenance_events').select('*'),
-                supabase.from('checklists').select('*').order('date', { ascending: false }).limit(50),
-                supabase.from('work_orders').select('asset_id, title, status')
-            ]);
+            // Reuse already fetched data instead of fetching everything again!
+            const data = await databaseService.getMaintenanceData();
+            const { assets: allAssets, plans: plansData, events: eventsData, checklists: checklistData, workOrders: woData } = data;
 
-            const allAssets: Asset[] = [
-                ...(vehData || []).map(a => ({ ...a, type: 'Rodados' })),
-                ...(machData || []).map(a => ({ ...a, type: 'Maquinaria' })),
-                ...(itData || []).map(a => ({ ...a, type: 'Equipos de Informática' })),
-                ...(furnData || []).map(a => ({ ...a, type: 'Mobiliario' })),
-                ...(infraData || []).map(a => ({ ...a, type: 'Instalaciones en infraestructuras' })),
-            ];
 
             const activeWorkOrders = woData?.filter(wo => wo.status !== 'Completada') || [];
             const newSuggestions: any[] = [];
@@ -484,7 +426,8 @@ const Maintenance: React.FC = () => {
                     date: newPreventive.date!,
                     time: newPreventive.time!,
                     frequency: newPreventive.frequency as any,
-                    nextDue: newPreventive.date! // Simple logic for demo
+                    nextDue: newPreventive.date!, // Simple logic for demo
+                    domainNumber: asset?.domainNumber
                 } : t
             );
             setPreventiveTasks(updatedTasks);
@@ -499,7 +442,8 @@ const Maintenance: React.FC = () => {
                 date: newPreventive.date || new Date().toISOString().split('T')[0],
                 time: newPreventive.time || '09:00',
                 frequency: newPreventive.frequency as any,
-                nextDue: newPreventive.date || new Date().toISOString().split('T')[0]
+                nextDue: newPreventive.date || new Date().toISOString().split('T')[0],
+                domainNumber: asset?.domainNumber
             };
             setPreventiveTasks([newTask, ...preventiveTasks]);
         }
@@ -761,7 +705,9 @@ const Maintenance: React.FC = () => {
                 items: checklistItems,
                 metadata: {
                     templateId: selectedTemplate.id,
-                    usage: currentUsage
+                    type: selectedTemplate.type,
+                    usage: currentUsage,
+                    domainNumber: asset?.domainNumber
                 }
             }).select().single();
 
@@ -788,6 +734,13 @@ const Maintenance: React.FC = () => {
             setChecklistItems([]);
             setChecklistAsset('');
             setSelectedTemplate(null);
+
+            // Redirect to detail view
+            if (data?.id) {
+                navigate(`/maintenance/checklist/${data.id}`);
+            } else {
+                setActiveTab('history'); // Fallback to history or somewhere relevant
+            }
         } catch (err) {
             console.error(err);
             alert("Error al guardar la inspección.");
@@ -947,7 +900,7 @@ const Maintenance: React.FC = () => {
                                         .filter(a => assetTypeFilter === 'ALL' || a.type === assetTypeFilter)
                                         .map(a => (
                                             <option key={a.id} value={a.id}>
-                                                {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
+                                                {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId}) {a.domainNumber ? `- ${a.domainNumber}` : ''}
                                             </option>
                                         ))}
                                 </select>
@@ -1066,7 +1019,15 @@ const Maintenance: React.FC = () => {
                     <div className="bg-slate-800 p-6 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
                         <div className="relative z-10">
                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Activo Asociado</p>
-                            <h2 className="font-black text-xl mb-3">{selectedAssetObj?.name} <span className="text-slate-500 font-medium text-sm">({selectedAssetObj?.internalId})</span></h2>
+                            <h2 className="font-black text-xl mb-3">
+                                {selectedAssetObj?.name} 
+                                <span className="text-slate-500 font-medium text-sm ml-2">({selectedAssetObj?.internalId})</span>
+                                {selectedAssetObj?.domainNumber && (
+                                    <span className="ml-2 bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs font-black border border-orange-500/30">
+                                        {selectedAssetObj.domainNumber}
+                                    </span>
+                                )}
+                            </h2>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
@@ -1276,7 +1237,7 @@ const Maintenance: React.FC = () => {
                                         <option value="">Seleccionar Equipo o Inmueble...</option>
                                         {assets.map(a => (
                                             <option key={a.id} value={a.id}>
-                                                {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId})
+                                                {a.type === 'Instalaciones en infraestructuras' ? '[INFRA] ' : ''}{a.name} ({a.internalId}) {a.domainNumber ? `- ${a.domainNumber}` : ''}
                                             </option>
                                         ))}
                                     </select>
@@ -1368,7 +1329,6 @@ const Maintenance: React.FC = () => {
 
             <div className="flex p-1 bg-slate-200 rounded-xl overflow-x-auto no-scrollbar">
                 <button onClick={() => setActiveTab('orders')} className={`flex-1 min-w-[80px] py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'orders' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Órdenes</button>
-                <button onClick={() => setActiveTab('checklists')} className={`flex-1 min-w-[80px] py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'checklists' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Checklists</button>
                 <button onClick={() => setActiveTab('preventive')} className={`flex-1 min-w-[80px] py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'preventive' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-500'}`}>Preventivo</button>
                 <button onClick={() => setActiveTab('predictive')} className={`flex-1 min-w-[80px] py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'predictive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Predictivo</button>
             </div>
@@ -1400,25 +1360,7 @@ const Maintenance: React.FC = () => {
                 </div>
             )}
 
-            {activeTab === 'checklists' && (
-                <div className="space-y-4 animate-in fade-in duration-300 relative">
-                    {loading ? <div className="text-center p-10"><Loader2 className="animate-spin mx-auto" /> Cargo Checklists...</div> : checklists.map(chk => (
-                        <div key={chk.id} onClick={() => navigate(`/maintenance/checklist/${chk.id}`)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 cursor-pointer group hover:border-emerald-200 transition-colors">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xs shadow-sm ${getScoreColor(chk.conformity)}`}>{chk.conformity}%</div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{chk.id}</p>
-                                <h4 className="font-bold text-slate-800 truncate">{chk.assetName}</h4>
-                                <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                    <span className="flex items-center gap-1"><CalendarIcon size={12} /> {chk.date}</span>
-                                    <span className="flex items-center gap-1"><PenTool size={12} /> {chk.inspector}</span>
-                                </div>
-                            </div>
-                            <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-500" />
-                        </div>
-                    ))}
 
-                </div>
-            )}
 
             {activeTab === 'preventive' && (
                 <div className="space-y-6 animate-in fade-in duration-300 relative pb-20">
@@ -1463,7 +1405,14 @@ const Maintenance: React.FC = () => {
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest leading-none mb-1">{task.frequency}</p>
-                                            <h4 className="font-bold text-slate-800 text-sm leading-tight">{task.assetName}</h4>
+                                            <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                                                {task.assetName}
+                                                {(task as any).domainNumber && (
+                                                    <span className="ml-2 text-purple-600 font-black bg-purple-50 px-1.5 py-0.5 rounded text-[9px] border border-purple-100 uppercase">
+                                                        { (task as any).domainNumber}
+                                                    </span>
+                                                )}
+                                            </h4>
                                         </div>
                                     </div>
                                     <div className="flex gap-1">

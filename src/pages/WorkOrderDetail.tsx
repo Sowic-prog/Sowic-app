@@ -130,18 +130,27 @@ const WorkOrderDetail: React.FC = () => {
           navigate('/maintenance'); // Redirect back to list
         }
 
-        // Fetch Providers
-        const { data: provs } = await supabase.from('providers').select('*');
-        if (provs) {
-          setProviders(provs.map((p: any) => ({
-            id: p.id,
-            companyName: p.company_name, // Mapping from snake_case DB
-            contactName: p.contact_name,
-            serviceType: p.service_type,
-            rating: p.rating,
-            status: p.status
-          })));
-        }
+                // Fetch Providers
+                const { data: provs } = await supabase.from('providers').select('*');
+                if (provs) {
+                    setProviders(provs.map((p: any) => ({
+                        id: p.id,
+                        companyName: p.company_name, // Mapping from snake_case DB
+                        contactName: p.contact_name,
+                        serviceType: p.service_type,
+                        rating: p.rating,
+                        status: p.status
+                    })));
+                }
+
+                // IMPROVED: Fetch asset details to get Patente (domainNumber)
+                if (resultData && resultData.asset_id) {
+                    const allAssets = await databaseService.getAllAssets();
+                    const asset = allAssets.find(a => a.id === resultData.asset_id);
+                    if (asset) {
+                        setOrder(prev => prev ? ({ ...prev, domainNumber: asset.domainNumber, internalId: asset.internalId }) : null);
+                    }
+                }
 
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -496,7 +505,7 @@ const WorkOrderDetail: React.FC = () => {
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Activo</p>
-            <p className="text-xl font-bold text-slate-900">{order.assetName}</p>
+            <p className="text-xl font-bold text-slate-900">{order.assetName} {(order as any).domainNumber && <span className="text-orange-600 ml-2">[{ (order as any).domainNumber}]</span>}</p>
             <p className="text-xs text-slate-500 mt-1">{order.internalId || 'S/N'} • {order.location || 'Ubicación no especificada'}</p>
           </div>
           <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
@@ -847,7 +856,14 @@ const WorkOrderDetail: React.FC = () => {
               <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 shrink-0"><Wrench size={24} /></div>
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Activo</p>
-                <p className="text-sm font-black text-slate-700">{order.assetName}</p>
+                <p className="text-sm font-black text-slate-700">
+                  {order.assetName}
+                  {(order as any).domainNumber && (
+                    <span className="ml-2 text-orange-600 font-black bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100 uppercase tracking-tight text-[10px]">
+                      { (order as any).domainNumber}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
 

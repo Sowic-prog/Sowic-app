@@ -37,7 +37,7 @@ const ChecklistHub: React.FC = () => {
                     inspector: item.inspector,
                     conformity: item.conformity,
                     items: item.items || [],
-                    // We might need to add 'type' to our DB later, for now we infer or add to metadata
+                    domainNumber: item.metadata?.domainNumber || '',
                     type: item.metadata?.type || 'Completo'
                 }));
                 setChecklists(mappedData);
@@ -146,7 +146,10 @@ const ChecklistHub: React.FC = () => {
                                             {chk.conformity >= 90 ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
                                         </div>
                                         <div>
-                                            <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors">{chk.assetName}</h4>
+                                            <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors">
+                                                {chk.assetName}
+                                                {(chk as any).domainNumber && <span className="text-orange-600 font-bold ml-2 text-xs">[{ (chk as any).domainNumber}]</span>}
+                                            </h4>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${(chk as any).type === 'Semanal' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
                                                     {(chk as any).type}

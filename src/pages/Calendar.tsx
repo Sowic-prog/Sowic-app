@@ -79,11 +79,11 @@ const CalendarPage: React.FC = () => {
                 if (woData) setWorkOrders(woData);
 
                 // 2. Allocations
-                const { data: allocData } = await supabase.from('asset_allocations').select('*, asset:assets(name), project:projects(name)');
+                const { data: allocData } = await supabase.from('asset_allocations').select('*, asset:assets(name, domain_number), project:projects(name)');
                 if (allocData) setAllocations(allocData);
 
                 // 3. Transfers
-                const { data: transData } = await supabase.from('asset_transfers').select('*, asset:assets(name)');
+                const { data: transData } = await supabase.from('asset_transfers').select('*, asset:assets(name, domain_number)');
                 if (transData) setTransfers(transData);
 
                 // 4. Maintenance Plans
@@ -91,8 +91,22 @@ const CalendarPage: React.FC = () => {
                 if (planData) setMaintenancePlans(planData);
 
                 // 5. Assets (for expirations and incidents)
-                const { data: assetData } = await supabase.from('assets').select('id, name, internal_id, expirations, incidents');
-                if (assetData) setAssets(assetData);
+                const [vehRes, machRes, itRes, mobRes, infraRes] = await Promise.all([
+                    supabase.from('vehicles').select('id, name, internal_id, expirations, incidents, domain_number'),
+                    supabase.from('machinery').select('id, name, internal_id, expirations, incidents, domain_number'),
+                    supabase.from('it_equipment').select('id, name, internal_id, expirations, incidents'),
+                    supabase.from('mobiliario').select('id, name, internal_id, expirations, incidents'),
+                    supabase.from('infrastructures').select('id, name, internal_id, expirations, incidents')
+                ]);
+
+                const combinedAssets = [
+                    ...(vehRes.data || []),
+                    ...(machRes.data || []),
+                    ...(itRes.data || []),
+                    ...(mobRes.data || []),
+                    ...(infraRes.data || [])
+                ];
+                setAssets(combinedAssets);
 
             } catch (error) {
                 console.error("Error fetching calendar data:", error);
@@ -114,7 +128,7 @@ const CalendarPage: React.FC = () => {
                 events.push({
                     id: `${alloc.id}-start`,
                     date: new Date(alloc.start_date + 'T00:00:00'),
-                    title: `Inicio Asignación: ${alloc.asset?.name || alloc.asset_name || 'Desconocido'}`,
+                    title: `Inicio Asignación: ${alloc.asset?.name || alloc.asset_name || 'Desconocido'}${alloc.asset?.domain_number ? ` [${alloc.asset.domain_number}]` : ''}`,
                     subtitle: alloc.project?.name || alloc.project_name || 'Sin Proyecto',
                     type: 'Allocation',
                     status: 'Inicio',
@@ -127,7 +141,7 @@ const CalendarPage: React.FC = () => {
                     events.push({
                         id: `${alloc.id}-end`,
                         date: new Date(alloc.end_date + 'T00:00:00'),
-                        title: `Fin Asignación: ${alloc.asset?.name || alloc.asset_name || 'Desconocido'}`,
+                        title: `Fin Asignación: ${alloc.asset?.name || alloc.asset_name || 'Desconocido'}${alloc.asset?.domain_number ? ` [${alloc.asset.domain_number}]` : ''}`,
                         subtitle: alloc.project?.name || alloc.project_name || 'Sin Proyecto',
                         type: 'Allocation',
                         status: 'Fin',
@@ -161,7 +175,7 @@ const CalendarPage: React.FC = () => {
                 events.push({
                     id: tr.id,
                     date: new Date(tr.transfer_date + 'T00:00:00'),
-                    title: `Traslado: ${tr.asset?.name || 'Activo'}`,
+                    title: `Traslado: ${tr.asset?.name || 'Activo'}${tr.asset?.domain_number ? ` [${tr.asset.domain_number}]` : ''}`,
                     subtitle: `${tr.from_location} -> ${tr.to_location}`,
                     type: 'Transfer',
                     status: tr.status,
@@ -289,6 +303,7 @@ const CalendarPage: React.FC = () => {
                         grouped[exp.type].push({
                             ...exp,
                             assetName: asset.name,
+                            domainNumber: asset.domain_number,
                             internalId: asset.internalId,
                             assetId: asset.id,
                             daysRemaining: diffDays,
@@ -484,7 +499,10 @@ const CalendarPage: React.FC = () => {
                                                             <span className="text-[8px] font-bold text-slate-400 uppercase">Días</span>
                                                         </div>
                                                         <div>
-                                                            <h4 className="font-bold text-slate-800 text-sm">{item.assetName}</h4>
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-bold text-slate-800 text-sm">{item.assetName}</h4>
+                                                                {item.domainNumber && <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-[4px] font-black uppercase text-[8px]">{item.domainNumber}</span>}
+                                                            </div>
                                                             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{item.internalId} • {item.notes}</p>
                                                         </div>
                                                     </div>

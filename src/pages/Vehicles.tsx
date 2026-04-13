@@ -13,9 +13,10 @@ import AssetImportModal from '../components/AssetImportModal';
 import MultiPhotoUpload from '../components/MultiPhotoUpload';
 import PhotoGallery from '../components/PhotoGallery';
 import { compressImage } from '../utils/imageCompression';
-import { Asset, AssetStatus, AssetExpiration, WorkOrderStatus, AssetOwnership, AssetIncident, Project, Staff } from '../types';
+import { Asset, AssetStatus, AssetOwnership, AssetExpiration, WorkOrderStatus, AssetIncident, Project, Staff } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { databaseService } from '../services/databaseService';
 import { getNextInternalId } from '../utils/assetUtils';
 
 // Helper to map DB snake_case to TS camelCase
@@ -193,7 +194,14 @@ const AssetListItem = React.memo(({ asset, onClick, getStatusColor }: { asset: A
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.internalId}</span>
+                            {asset.domainNumber && (
+                                <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-md border border-orange-200 uppercase">
+                                    {asset.domainNumber}
+                                </span>
+                            )}
+                        </div>
                         {asset.barcodeId && <span className="text-[9px] font-bold text-slate-500 font-mono">{asset.barcodeId}</span>}
                     </div>
                     {asset.ownership === 'Alquilado' && (
@@ -364,52 +372,30 @@ const Vehicles: React.FC = () => {
     const fetchAssets = async () => {
         setLoading(true);
         try {
-            // 1. Fetch Assets
-            const { data: assetsData, error: assetsError } = await supabase
-                .from('vehicles') // Changed from 'assets'
-                .select('*')
-                // .eq('type', 'Rodados') // Removed
-                .order('created_at', { ascending: false });
+            // 1. Fetch Assets via Service (Filtered for Vehicles)
+            const allAssets = await databaseService.getAllAssets();
+            const vehiclesData = allAssets.filter(a => a.category === 'Vehículo' || a.type === 'Rodados');
 
-            console.log("Vehicles fetched:", assetsData?.length, assetsData);
-
-            if (assetsError) {
-                setFetchError(assetsError.message || JSON.stringify(assetsError));
-                throw assetsError;
-            } else {
-                setFetchError(null);
-            }
-
-            // 2. Fetch Active Allocations
+            // 2. Fetch Active Allocations for location overrides
             const today = new Date().toISOString().split('T')[0];
-            const { data: allocationsData, error: allocationsError } = await supabase
+            const { data: allocationsData } = await supabase
                 .from('asset_allocations')
                 .select('*, projects(name)')
                 .lte('start_date', today)
                 .gte('end_date', today)
                 .eq('status', 'Activo');
 
-            if (allocationsError) {
-                console.error('Error fetching allocations:', allocationsError);
-            }
-
-            if (assetsData) {
-                const mappedAssets = assetsData.map(dbAsset => {
-                    const baseAsset = mapAssetFromDB(dbAsset);
-
-                    // Find active allocation
-                    const allocation = allocationsData?.find(a => a.asset_id === baseAsset.id);
-
-                    if (allocation) {
-                        return {
-                            ...baseAsset,
-                            location: allocation.projects?.name || baseAsset.location,
-                        };
-                    }
-                    return baseAsset;
-                });
-                setAssets(mappedAssets);
-            }
+            const mappedAssets = vehiclesData.map(asset => {
+                const allocation = allocationsData?.find(a => a.asset_id === asset.id);
+                if (allocation) {
+                    return {
+                        ...asset,
+                        location: allocation.projects?.name || asset.location,
+                    };
+                }
+                return asset;
+            });
+            setAssets(mappedAssets);
         } catch (error: any) {
             console.error('Error fetching data:', error);
             setFetchError(error.message || String(error));
@@ -420,8 +406,7 @@ const Vehicles: React.FC = () => {
 
     const fetchProjects = async () => {
         try {
-            const { data, error } = await supabase.from('projects').select('*');
-            if (error) throw error;
+            const { data } = await supabase.from('projects').select('*');
             if (data) setDbProjects(data.map(mapProjectFromDB));
         } catch (err) {
             console.error('Error fetching projects:', err);
@@ -430,8 +415,7 @@ const Vehicles: React.FC = () => {
 
     const fetchStaff = async () => {
         try {
-            const { data, error } = await supabase.from('staff').select('*');
-            if (error) throw error;
+            const { data } = await supabase.from('staff').select('*');
             if (data) setDbStaff(data.map(mapStaffFromDB));
         } catch (err) {
             console.error('Error fetching staff:', err);
@@ -2275,9 +2259,16 @@ const Vehicles: React.FC = () => {
                                                         <p className="text-[10px] text-slate-400">{exp.notes}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Vence</p>
-                                                    <p className="text-xs font-bold text-red-500">{exp.expirationDate}</p>
+                                                <div className="flex items-center gap-4 text-right">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Vence</p>
+                                                        <p className="text-xs font-bold text-red-500">{exp.expirationDate}</p>
+                                                    </div>
+                                                    {exp.fileUrl && (
+                                                        <a href={exp.fileUrl} download={`vencimiento_${exp.type}.pdf`} className="p-2 bg-white text-blue-500 hover:bg-blue-50 rounded-xl shadow-sm border border-slate-100 transition-colors" title="Descargar archivo">
+                                                            <Download size={16} />
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))
@@ -2376,7 +2367,7 @@ const Vehicles: React.FC = () => {
                                     <span className="text-xs font-bold uppercase">Crear OT</span>
                                 </button>
                                 <button
-                                    onClick={() => navigate('/maintenance', { state: { action: 'createChecklist', assetId: selectedAsset.id } })}
+                                    onClick={() => navigate('/checklist/new', { state: { assetId: selectedAsset.id } })}
                                     className="bg-white border border-slate-200 text-slate-600 p-4 rounded-2xl flex flex-col items-center gap-2 shadow-sm active:scale-95 transition-transform hover:border-orange-200 hover:text-orange-500"
                                 >
                                     <ClipboardCheck size={24} />

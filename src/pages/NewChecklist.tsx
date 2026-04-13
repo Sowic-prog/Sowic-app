@@ -166,13 +166,15 @@ const NewChecklist: React.FC = () => {
 
     const handleSelectTemplate = (template: ChecklistTemplate) => {
         if (!selectedAsset) return;
-        navigate('/maintenance/orders', {
-            state: {
-                action: 'createChecklist',
-                assetId: selectedAsset.id,
-                templateId: template.id
-            }
+        setSelectedTemplate(template);
+        
+        // Initialize results for the items
+        const initialResults: Record<string, { status: 'ok' | 'fail', comment: string, photo: string | null }> = {};
+        template.items.forEach(item => {
+            initialResults[item.id] = { status: 'ok', comment: '', photo: null };
         });
+        setResults(initialResults);
+        setStep(3);
     };
 
     const handleToggleStatus = (itemId: string) => {
@@ -229,7 +231,8 @@ const NewChecklist: React.FC = () => {
                 metadata: {
                     templateId: selectedTemplate.id,
                     type: selectedTemplate.type,
-                    usage: currentUsage
+                    usage: currentUsage,
+                    domainNumber: selectedAsset.domainNumber
                 }
             };
 
@@ -261,7 +264,7 @@ const NewChecklist: React.FC = () => {
             }
 
 
-            navigate(`/checklist/${data.id}`);
+            navigate(`/maintenance/checklist/${data.id}`);
         } catch (err) {
             console.error("Error saving checklist:", err);
             alert("No se pudo guardar el checklist. Reintente por favor.");
@@ -388,7 +391,10 @@ const NewChecklist: React.FC = () => {
                                 {selectedAsset.type === 'Rodados' ? <Truck className="text-orange-500" /> : <Hammer className="text-orange-500" />}
                                 <div className="flex-1">
                                     <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest leading-none">Activo Seleccionado</p>
-                                    <p className="text-sm font-black text-orange-700">{selectedAsset.name}</p>
+                                    <p className="text-sm font-black text-orange-700">
+                                        {selectedAsset.name} 
+                                        {selectedAsset.domainNumber && <span className="ml-2 text-[10px] bg-white px-2 py-0.5 rounded-lg border border-orange-200">[{selectedAsset.domainNumber}]</span>}
+                                    </p>
                                 </div>
                                 <button onClick={() => setStep(1)} className="text-orange-400 text-xs font-bold underline">Cambiar</button>
                             </div>
@@ -434,7 +440,10 @@ const NewChecklist: React.FC = () => {
                         <div className="bg-slate-800 p-5 rounded-3xl text-white shadow-xl shadow-slate-200 mb-8 relative overflow-hidden">
                             <div className="relative z-10">
                                 <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] mb-1">Inspección en curso</p>
-                                <h4 className="text-lg font-black leading-tight mb-2">{selectedAsset.name}</h4>
+                                <h4 className="text-lg font-black leading-tight mb-2">
+                                    {selectedAsset.name}
+                                    {selectedAsset.domainNumber && <span className="ml-2 text-[11px] text-orange-400 font-black">[{selectedAsset.domainNumber}]</span>}
+                                </h4>
                                 <div className="flex items-center gap-3">
                                     <span className="bg-white/10 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider">{selectedTemplate.type}</span>
                                     <span className="text-[10px] text-slate-300 font-bold uppercase">{selectedTemplate.items.length} Puntos de control</span>

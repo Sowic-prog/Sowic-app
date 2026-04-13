@@ -10,6 +10,7 @@ import { MOCK_PROJECTS, MOCK_ASSETS, MOCK_STAFF, MOCK_INVENTORY } from '../const
 import { Project, Asset, Staff, InventoryItem } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { databaseService } from '../services/databaseService';
 
 const mapStaffFromDB = (data: any): Staff => ({
     id: data.id,
@@ -46,7 +47,8 @@ const mapAssetFromDB = (data: any): Asset => ({
     year: data.year || 2024,
     dailyRate: 0,
     value: 0,
-    serial: data.serial || ''
+    serial: data.serial || '',
+    domainNumber: data.domain_number || ''
 });
 
 const mapProjectFromDB = (data: any): Project => ({
@@ -188,36 +190,29 @@ const Projects: React.FC = () => {
 
     const fetchProjectResources = async (project: Project) => {
         try {
-            // 1. Fetch Assets via Allocations (Cronograma)
-            // We want assets that are allocated to this project
+            // 1. Fetch Assets via Allocations
             const { data: allocData, error: allocError } = await supabase
                 .from('asset_allocations')
-                .select(`
-                    *,
-                    assets (*)
-                `)
+                .select('*')
                 .eq('project_id', project.id);
 
             if (allocError) throw allocError;
 
-            // Also fetch assets that might just be "located" there but not allocated? 
-            // For now, let's strictly follow the user's "logistics determines location" rule, 
-            // but also fallback to the simple location check for assets that might have been transferred without allocation.
-            // Actually, to show dates, we rely on allocations. 
-            // Let's mix both: Assets physically there + Allocation info.
-
-            // For simplicity and user request "visualizar desde fecha hasta fecha", 
-            // we primarily use allocations.
-
             if (allocData) {
-                const mappedAssets = allocData.map((item: any) => ({
-                    ...mapAssetFromDB(item.assets), // Base asset
-                    allocationId: item.id,
-                    startDate: item.start_date,
-                    endDate: item.end_date,
-                }));
+                // Stitching with cached assets from databaseService
+                const allAssets = await databaseService.getAllAssets();
+                const mappedAssets = allocData.map((item: any) => {
+                    const baseAsset = allAssets.find(a => a.id === item.asset_id);
+                    return {
+                        ...(baseAsset || { name: item.asset_name, id: item.asset_id, status: 'Desconocido' }), 
+                        allocationId: item.id,
+                        startDate: item.start_date,
+                        endDate: item.end_date,
+                    };
+                });
                 setProjectAssets(mappedAssets);
             }
+
 
             // 2. Fetch Inventory
             // Inventory usually doesn't have allocations, just location
@@ -616,6 +611,13 @@ const Projects: React.FC = () => {
                                         </span>
                                     </div>
                                     <h4 className="font-bold text-slate-800 text-sm truncate">{asset.name}</h4>
+                                    {asset.domainNumber && (
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                            <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2 rounded-lg border border-orange-100">
+                                                {asset.domainNumber}
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {/* Dates Display */}
                                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">

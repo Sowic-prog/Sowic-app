@@ -10,6 +10,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import { databaseService } from '../services/databaseService';
 import { MOCK_ASSETS, MOCK_PROJECTS, MOCK_STAFF, MOCK_INVENTORY, MOCK_WORK_ORDERS } from '../constants';
 
 interface Notification {
@@ -33,7 +34,10 @@ const Dashboard: React.FC = () => {
 
     // Real Data State
     const [assets, setAssets] = useState<any[]>([]);
-    const [activeWorkOrders, setActiveWorkOrders] = useState<any[]>([]);
+    const [projects, setProjects] = useState<any[]>([]);
+    const [staff, setStaff] = useState<any[]>([]);
+    const [inventory, setInventory] = useState<any[]>([]);
+    const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     // Dynamic Notifications State
@@ -43,58 +47,33 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // 1. Fetch Assets from all tables
-                const [
-                    { data: vehiclesData },
-                    { data: machineryData },
-                    { data: itData },
-                    { data: furnitureData },
-                    { data: infraData }
-                ] = await Promise.all([
-                    supabase.from('vehicles').select('id, name, status, internal_id, hours'),
-                    supabase.from('machinery').select('id, name, status, internal_id, hours'),
-                    supabase.from('it_equipment').select('id, name, status, internal_id'),
-                    supabase.from('mobiliario').select('id, name, status, internal_id'),
-                    supabase.from('infrastructures').select('id, name, status, internal_id')
-                ]);
+                setLoading(true);
+                // 1. Fetch Assets and Basic Data via Service
+                const { assets, events: mEvents, plans: mPlans, workOrders: woData } = await databaseService.getMaintenanceData();
+                setAssets(assets);
+                setWorkOrders(woData);
 
-                const allAssets = [
-                    ...(vehiclesData || []),
-                    ...(machineryData || []),
-                    ...(itData || []),
-                    ...(furnitureData || []),
-                    ...(infraData || [])
-                ];
+                // Fetch Staff
+                const { data: staffData } = await supabase.from('staff').select('*');
+                if (staffData) setStaff(staffData);
 
-                if (allAssets.length > 0) setAssets(allAssets);
+                // Fetch Projects
+                const { data: projData } = await supabase.from('projects').select('*');
+                if (projData) setProjects(projData);
 
-                // 2. Fetch Active Work Orders
-                const { data: woData } = await supabase
-                    .from('work_orders')
-                    .select('*')
-                    .neq('status', 'Completada');
+                // Fetch Inventory
+                const { data: invData } = await supabase.from('inventory').select('*');
+                if (invData) setInventory(invData);
 
-                if (woData) setActiveWorkOrders(woData);
-
-                // 3. Fetch Service Requests and Maintenance Events for Notifications
-                const [
-                    { data: serviceReqs },
-                    { data: mEvents },
-                    { data: mPlans }
-                ] = await Promise.all([
-                    supabase.from('service_requests').select('*').eq('status', 'Pendiente'),
-                    supabase.from('maintenance_events').select('*').neq('status', 'Completado'),
-                    supabase.from('maintenance_plans').select('id, asset_name, asset_id')
-                ]);
-
-                // 4. Generate Dynamic Notifications
+                // 2. Notifications Logic
                 const dynamicNotifications: Notification[] = [];
                 const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
                 const deletedIds = JSON.parse(localStorage.getItem('deleted_notifications') || '[]');
 
                 // Service Requests -> Notifications
-                if (serviceReqs) {
-                    serviceReqs.forEach(req => {
+                const { data: sRequests } = await supabase.from('service_requests').select('*').eq('status', 'Pendiente').limit(5);
+                if (sRequests) {
+                    sRequests.forEach(req => {
                         if (deletedIds.includes(req.id)) return;
                         dynamicNotifications.push({
                             id: req.id,
@@ -108,7 +87,7 @@ const Dashboard: React.FC = () => {
                     });
                 }
 
-                // Maintenance Events -> Notifications (Close to date)
+                // Maintenance Events -> Notifications
                 if (mEvents && mPlans) {
                     const today = new Date();
                     const sevenDaysLater = new Date();
@@ -117,14 +96,13 @@ const Dashboard: React.FC = () => {
                     mEvents.forEach(evt => {
                         if (deletedIds.includes(evt.id)) return;
                         const evtDate = new Date(evt.estimated_date);
-
-                        // If it's within 7 days or overdue
                         if (evtDate <= sevenDaysLater) {
                             const plan = mPlans.find(p => p.id === evt.plan_id);
+                            const asset = assets.find(a => a.id === plan?.asset_id);
                             dynamicNotifications.push({
                                 id: evt.id,
                                 title: 'Mantenimiento Próximo',
-                                description: `${evt.title} para ${plan?.asset_name || 'Activo'}`,
+                                description: `${evt.title} para ${asset?.name || 'Activo'}${asset?.domainNumber ? ` [${asset.domainNumber}]` : ''}`,
                                 time: evtDate < today ? 'VENCIDO' : evt.estimated_date,
                                 type: evtDate < today ? 'critical' : 'warning',
                                 read: readIds.includes(evt.id),
@@ -133,36 +111,31 @@ const Dashboard: React.FC = () => {
                         }
                     });
                 }
-
                 setNotifications(dynamicNotifications);
 
-                // 3. Fetch Recent Activity
-                const { data: activityData } = await supabase
-                    .from('work_orders')
-                    .select('id, title, status, created_at, asset_id')
-                    .order('created_at', { ascending: false })
-                    .limit(5);
-
-                if (activityData) {
-                    const mappedActivity = activityData.map((item: any) => {
-                        const relatedAsset = allAssets.find((a: any) => a.id === item.asset_id);
+                // 3. Recent Activity (Recent Work Orders)
+                if (woData) {
+                    const mappedActivity = woData.slice(0, 5).map((item: any) => {
+                        const relatedAsset = assets.find((a: any) => a.id === item.asset_id);
                         return {
                             ...item,
-                            asset: { name: relatedAsset?.name || 'Desconocido' }
+                            asset: { 
+                                name: relatedAsset?.name || 'Desconocido',
+                                domainNumber: relatedAsset?.domainNumber 
+                            }
                         };
                     });
                     setRecentActivity(mappedActivity);
                 }
-
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, []);
+
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -179,22 +152,27 @@ const Dashboard: React.FC = () => {
         setNotifications(notifications.filter(n => n.id !== id));
     };
 
-    // Global Search Logic
+    // Global Search Logic using Real Data
     const searchResults = useMemo(() => {
         if (!globalSearch.trim()) return null;
         const term = globalSearch.toLowerCase();
 
         const results = {
-            assets: MOCK_ASSETS.filter(a => a.name.toLowerCase().includes(term) || a.internalId.toLowerCase().includes(term) || a.serial.toLowerCase().includes(term)),
-            projects: MOCK_PROJECTS.filter(p => p.name.toLowerCase().includes(term) || p.internalId.toLowerCase().includes(term)),
-            staff: MOCK_STAFF.filter(s => s.name.toLowerCase().includes(term) || s.role.toLowerCase().includes(term)),
-            inventory: MOCK_INVENTORY.filter(i => i.name.toLowerCase().includes(term) || (i.serialNumber && i.serialNumber.toLowerCase().includes(term))),
-            workOrders: MOCK_WORK_ORDERS.filter(o => o.title.toLowerCase().includes(term) || o.id.toLowerCase().includes(term))
+            assets: assets.filter(a => 
+                a.name.toLowerCase().includes(term) || 
+                (a.internalId && String(a.internalId).toLowerCase().includes(term)) || 
+                (a.domainNumber && String(a.domainNumber).toLowerCase().includes(term)) || 
+                (a.serial && String(a.serial).toLowerCase().includes(term))
+            ),
+            projects: projects.filter(p => p.name.toLowerCase().includes(term) || (p.internalId && String(p.internalId).toLowerCase().includes(term))),
+            staff: staff.filter(s => s.name.toLowerCase().includes(term) || (s.role && String(s.role).toLowerCase().includes(term))),
+            inventory: inventory.filter(i => (i.name && i.name.toLowerCase().includes(term)) || (i.serialNumber && String(i.serialNumber).toLowerCase().includes(term))),
+            workOrders: workOrders.filter(o => o.title.toLowerCase().includes(term) || (o.id && String(o.id).toLowerCase().includes(term)))
         };
 
         const hasResults = Object.values(results).some(arr => arr.length > 0);
         return hasResults ? results : 'empty';
-    }, [globalSearch]);
+    }, [globalSearch, assets, projects, staff, inventory, workOrders]);
 
     const handleResultClick = (type: string, id: string) => {
         setGlobalSearch('');
@@ -295,115 +273,6 @@ const Dashboard: React.FC = () => {
     return (
         <div className="bg-[#F2F2F2] min-h-full font-sans pb-32 relative">
 
-            {/* GLOBAL SEARCH OVERLAY */}
-            {isSearchFocused && (
-                <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto px-6 pt-24 pb-12 no-scrollbar">
-                    <div className="max-w-xl mx-auto space-y-6">
-                        <div className="flex justify-between items-center text-white mb-2">
-                            <h2 className="text-xl font-bold">Resultados Globales</h2>
-                            <button onClick={() => { setIsSearchFocused(false); setGlobalSearch(''); }} aria-label='Cerrar búsqueda' className="p-2 bg-white/10 rounded-full"><X size={20} /></button>
-                        </div>
-                        {searchResults === 'empty' ? (
-                            <div className="bg-white p-12 rounded-[2.5rem] text-center space-y-3">
-                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300"><Search size={32} /></div>
-                                <p className="font-bold text-slate-800">No encontramos coincidencias</p>
-                            </div>
-                        ) : searchResults && (
-                            <div className="space-y-6">
-                                {searchResults.assets.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] ml-2">Activos</h3>
-                                        <div className="grid gap-2">
-                                            {searchResults.assets.map(a => (
-                                                <button key={a.id} onClick={() => handleResultClick('asset', a.id)} className="w-full bg-white p-4 rounded-2xl flex items-center gap-4 hover:bg-orange-50 transition-colors group">
-                                                    <img src={a.image} alt={a.name} className="w-10 h-10 rounded-xl object-cover" />
-                                                    <div className="text-left flex-1 truncate">
-                                                        <p className="text-xs font-black text-slate-800 truncate">{a.name}</p>
-                                                        <p className="text-[10px] font-bold text-orange-500 uppercase">{a.internalId}</p>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-orange-500" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {searchResults.projects.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] ml-2">Obras</h3>
-                                        <div className="grid gap-2">
-                                            {searchResults.projects.map(p => (
-                                                <button key={p.id} onClick={() => handleResultClick('project', p.id)} className="w-full bg-white p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-colors group">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600"><Folder size={20} /></div>
-                                                    <div className="text-left flex-1 truncate">
-                                                        <p className="text-xs font-black text-slate-800 truncate">{p.name}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{p.internalId}</p>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-800" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {searchResults.staff.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] ml-2">Personal</h3>
-                                        <div className="grid gap-2">
-                                            {searchResults.staff.map(s => (
-                                                <button key={s.id} onClick={() => handleResultClick('staff', s.id)} className="w-full bg-white p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-colors group">
-                                                    <img src={s.avatar} alt={s.name} className="w-10 h-10 rounded-xl object-cover" />
-                                                    <div className="text-left flex-1 truncate">
-                                                        <p className="text-xs font-black text-slate-800 truncate">{s.name}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{s.role}</p>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-800" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {searchResults.workOrders.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] ml-2">Órdenes de Trabajo</h3>
-                                        <div className="grid gap-2">
-                                            {searchResults.workOrders.map(o => (
-                                                <button key={o.id} onClick={() => handleResultClick('wo', o.id)} className="w-full bg-white p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-colors group">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600"><WrenchIcon size={20} /></div>
-                                                    <div className="text-left flex-1 truncate">
-                                                        <p className="text-xs font-black text-slate-800 truncate">{o.title}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{o.id}</p>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-800" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {searchResults.inventory.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] ml-2">Inventario</h3>
-                                        <div className="grid gap-2">
-                                            {searchResults.inventory.map(i => (
-                                                <button key={i.id} onClick={() => handleResultClick('inventory', i.id)} className="w-full bg-white p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-colors group">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600"><Box size={20} /></div>
-                                                    <div className="text-left flex-1 truncate">
-                                                        <p className="text-xs font-black text-slate-800 truncate">{i.name}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{i.category}</p>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-800" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* NOTIFICATIONS PANEL */}
             {isNotificationsOpen && (
@@ -532,6 +401,7 @@ const Dashboard: React.FC = () => {
                             <button onClick={() => setIsScanning(true)} aria-label='Abrir escáner' className="text-orange-500 p-1 hover:scale-110 transition-transform"><ScanLine size={20} /></button>
                         </div>
                     </div>
+
                 </div>
 
                 <div className="mt-8">
@@ -542,183 +412,239 @@ const Dashboard: React.FC = () => {
 
             {/* KPI Row and Main Navigation... */}
             <div className="px-6 -mt-8 space-y-8 pb-10">
-                <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
-                        <div className="flex justify-between items-start">
-                            <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-2">
-                                <Bot size={18} />
-                            </div>
-                            <div title="Total de activos registrados en la plataforma.">
-                                <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-orange-500 transition-colors" />
-                            </div>
+                {globalSearch.trim() ? (
+                    /* INTEGRATED SEARCH VIEW (Replaces dashboard content) */
+                    <div className="bg-white rounded-[2.5rem] p-6 shadow-xl border border-slate-50 min-h-[60vh] animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">
+                                <Search size={22} className="text-orange-500" />
+                                Resultados
+                            </h3>
+                            <button onClick={() => setGlobalSearch('')} className="text-[10px] font-black text-orange-500 uppercase tracking-widest px-3 py-1 bg-orange-50 rounded-full">Limpiar</button>
                         </div>
-                        <div>
-                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Activos</p>
-                            <div className="flex items-end gap-2">
-                                <span className="text-2xl font-bold text-slate-800">{loading ? '...' : totalAssets}</span>
-                                {/* <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold mb-1">+2%</span> */}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
-                        <div className="flex justify-between items-start">
-                            <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 mb-2">
-                                <WrenchIcon size={18} />
-                            </div>
-                            <div title="Órdenes de trabajo actualmente en curso.">
-                                <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-slate-500 transition-colors" />
-                            </div>
-                        </div>
-                        <div>
-                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Mantenimiento</p>
-                            <div className="flex items-end gap-2">
-                                <span className="text-2xl font-bold text-slate-800">{loading ? '...' : activeWorkOrders.length}</span>
-                                <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold mb-1">En Curso</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                <div>
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                            <LayoutGrid size={20} className="text-orange-500" />
-                            Módulos
-                        </h3>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        {mainModules.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={() => navigate(item.path)}
-                                className={`${item.color} p-5 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden`}
-                            >
-                                <div className={`w-12 h-12 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-2xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
-                                    <item.icon size={26} />
-                                </div>
-                                <span className={`text-sm font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-700'}`}>
-                                    {item.label}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center justify-between mb-4 mt-8">
-                        <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest flex items-center gap-2">
-                            Gestión
-                        </h3>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                        {managementModules.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={() => navigate(item.path)}
-                                className={`${item.color} p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group relative overflow-hidden h-28`}
-                            >
-                                <div className={`w-10 h-10 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
-                                    <item.icon size={20} />
-                                </div>
-                                <span className={`text-[10px] font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-600'}`}>
-                                    {item.label}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Fleet Status Chart */}
-                <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-50 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <TrendingUp size={80} className="text-slate-800" />
-                    </div>
-
-                    <h3 className="font-extrabold text-slate-800 text-lg mb-8 flex items-center gap-3">
-                        <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
-                        Estado de la Flota
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                        <div className="h-56 relative group/chart">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={chartData}
-                                        innerRadius={65}
-                                        outerRadius={85}
-                                        paddingAngle={8}
-                                        dataKey="value"
-                                        stroke="none"
-                                        cornerRadius={10}
-                                        animationBegin={0}
-                                        animationDuration={1500}
-                                        animationEasing="ease-out"
+                        <div className="space-y-2">
+                            {searchResults && searchResults !== 'empty' ? (
+                                [
+                                    ...searchResults.assets.map(a => ({ ...a, typeIdx: 'asset', icon: Package, label: a.name, sub: a.domainNumber ? `Patente: ${a.domainNumber}` : a.internalId, color: 'text-orange-500', bgColor: 'bg-orange-50' })),
+                                    ...searchResults.workOrders.map(wo => ({ ...wo, typeIdx: 'wo', icon: Wrench, label: wo.title, sub: `OT-${String(wo.id).slice(0, 4)}`, color: 'text-blue-500', bgColor: 'bg-blue-50' })),
+                                    ...searchResults.projects.map(p => ({ ...p, typeIdx: 'project', icon: Folder, label: p.name, sub: 'Obra', color: 'text-slate-700', bgColor: 'bg-slate-100' })),
+                                    ...searchResults.staff.map(s => ({ ...s, typeIdx: 'staff', icon: User, label: s.name, sub: s.role, color: 'text-slate-600', bgColor: 'bg-slate-100' }))
+                                ].map((item, idx) => (
+                                    <button
+                                        key={`${item.typeIdx}-${item.id || idx}`}
+                                        onClick={() => handleResultClick(item.typeIdx as any, item.id)}
+                                        className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition-all rounded-3xl group border border-transparent hover:border-slate-100"
                                     >
-                                        {chartData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.color}
-                                                className="filter drop-shadow-sm hover:opacity-80 transition-opacity cursor-pointer"
-                                            />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{
-                                            borderRadius: '20px',
-                                            border: 'none',
-                                            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                                            padding: '12px 20px'
-                                        }}
-                                        itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                <span className="text-4xl font-black text-slate-800 tracking-tighter">{loading ? '...' : `${operationalPercentage}%`}</span>
-                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mt-1">Disponible</span>
+                                        <div className={`w-12 h-12 ${item.bgColor} ${item.color} rounded-2xl flex items-center justify-center shrink-0 shadow-sm`}>
+                                            <item.icon size={20} />
+                                        </div>
+                                        <div className="text-left flex-1 min-w-0">
+                                            <p className="text-sm font-black text-slate-700 truncate">{item.label}</p>
+                                            <p className="text-xs text-slate-400 font-medium">{item.sub}</p>
+                                        </div>
+                                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
+                                            <ChevronRight size={16} />
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="py-20 text-center opacity-40">
+                                    <Search size={48} className="mx-auto mb-4 text-slate-200" />
+                                    <p className="text-sm font-bold text-slate-500">No se encontró lo que buscas</p>
+                                    <p className="text-xs text-slate-400 mt-1">Prueba con otro nombre o ID</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    /* NORMAL DASHBOARD VIEW */
+                    <>
+                        <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+                            <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-2">
+                                        <Bot size={18} />
+                                    </div>
+                                    <div title="Total de activos registrados en la plataforma.">
+                                        <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-orange-500 transition-colors" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Activos</p>
+                                    <div className="flex items-end gap-2">
+                                        <span className="text-2xl font-bold text-slate-800">{loading ? '...' : totalAssets}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl shadow-sm flex-1 min-w-[140px] flex flex-col justify-between h-28 border border-slate-50 group">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 mb-2">
+                                        <WrenchIcon size={18} />
+                                    </div>
+                                    <div title="Órdenes de trabajo actualmente en curso.">
+                                        <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-slate-500 transition-colors" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Mantenimiento</p>
+                                    <div className="flex items-end gap-2">
+                                        <span className="text-2xl font-bold text-slate-800">{loading ? '...' : workOrders.filter(wo => wo.status !== 'Completada').length}</span>
+                                        <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold mb-1">En Curso</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            {chartData.map(d => (
-                                <div key={d.name} className="flex items-center justify-between p-3 rounded-2xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all group/item">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-3 h-3 rounded-full ${d.dotClass} shadow-sm group-hover/item:scale-125 transition-transform`}></div>
-                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{d.name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-black text-slate-800">{d.value}</span>
-                                        <span className="text-[10px] font-bold text-slate-300">ACT.</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                    <LayoutGrid size={20} className="text-orange-500" />
+                                    Módulos
+                                </h3>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                {mainModules.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => navigate(item.path)}
+                                        className={`${item.color} p-5 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden`}
+                                    >
+                                        <div className={`w-12 h-12 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-2xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
+                                            <item.icon size={26} />
+                                        </div>
+                                        <span className={`text-sm font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-700'}`}>
+                                            {item.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
 
-                {/* Recent Activity */}
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><History size={20} className="text-orange-500" /> Actividad Reciente</h3>
-                    </div>
-                    <div className="space-y-3">
-                        {loading ? <p className="text-sm text-slate-400">Cargando...</p> : (
-                            recentActivity.length > 0 ? recentActivity.map((activity) => (
-                                <div key={activity.id} className="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-4 border border-slate-50">
-                                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600"><WrenchIcon size={18} /></div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-slate-800 text-sm truncate">{activity.title}</h4>
-                                        <p className="text-[10px] text-slate-500 font-medium">Activo: {activity.asset?.name || 'N/A'}</p>
+                            <div className="flex items-center justify-between mb-4 mt-8">
+                                <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest flex items-center gap-2">
+                                    Gestión
+                                </h3>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                {managementModules.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => navigate(item.path)}
+                                        className={`${item.color} p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group relative overflow-hidden h-28`}
+                                    >
+                                        <div className={`w-10 h-10 ${item.color.includes('bg-white') ? 'bg-slate-50' : 'bg-white/20'} rounded-xl flex items-center justify-center shadow-sm ${item.iconColor}`}>
+                                            <item.icon size={20} />
+                                        </div>
+                                        <span className={`text-[10px] font-bold ${item.color.includes('bg-slate-800') || item.color.includes('bg-orange-500') ? 'text-white' : 'text-slate-600'}`}>
+                                            {item.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Fleet Status Chart */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-50 relative overflow-hidden group min-h-[300px]">
+                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <TrendingUp size={80} className="text-slate-800" />
+                            </div>
+
+                            <h3 className="font-extrabold text-slate-800 text-lg mb-8 flex items-center gap-3">
+                                <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
+                                Estado de la Flota
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                                <div className="h-56 relative group/chart">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={chartData}
+                                                innerRadius={65}
+                                                outerRadius={85}
+                                                paddingAngle={8}
+                                                dataKey="value"
+                                                stroke="none"
+                                                cornerRadius={10}
+                                                animationBegin={0}
+                                                animationDuration={1500}
+                                                animationEasing="ease-out"
+                                            >
+                                                {chartData.map((entry, index) => (
+                                                    <Cell
+                                                        key={`cell-${index}`}
+                                                        fill={entry.color}
+                                                        className="filter drop-shadow-sm hover:opacity-80 transition-opacity cursor-pointer"
+                                                    />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip
+                                                contentStyle={{
+                                                    borderRadius: '20px',
+                                                    border: 'none',
+                                                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+                                                    padding: '12px 20px'
+                                                }}
+                                                itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                        <span className="text-4xl font-black text-slate-800 tracking-tighter">{loading ? '...' : `${operationalPercentage}%`}</span>
+                                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mt-1">Disponible</span>
                                     </div>
-                                    <span className="text-[10px] text-slate-400 font-bold">
-                                        {new Date(activity.created_at).toLocaleDateString()}
-                                    </span>
                                 </div>
-                            )) : (
-                                <p className="text-sm text-slate-400 italic">No hay actividad reciente.</p>
-                            )
-                        )}
-                    </div>
-                </div>
+
+                                <div className="space-y-3">
+                                    {chartData.map(d => (
+                                        <div key={d.name} className="flex items-center justify-between p-3 rounded-2xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all group/item">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-3 h-3 rounded-full ${d.dotClass} shadow-sm group-hover/item:scale-125 transition-transform`}></div>
+                                                <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{d.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-black text-slate-800">{d.value}</span>
+                                                <span className="text-[10px] font-bold text-slate-300">ACT.</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent Activity */}
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><History size={20} className="text-orange-500" /> Actividad Reciente</h3>
+                            </div>
+                            <div className="space-y-3">
+                                {loading ? <p className="text-sm text-slate-400">Cargando...</p> : (
+                                    recentActivity.length > 0 ? recentActivity.map((activity) => (
+                                        <div key={activity.id} className="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-4 border border-slate-50">
+                                            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600"><WrenchIcon size={18} /></div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-slate-800 text-sm truncate">{activity.title}</h4>
+                                                <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
+                                                    Activo: {activity.asset?.name || 'N/A'}
+                                                    {activity.asset?.domainNumber && (
+                                                        <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-[4px] font-black uppercase text-[8px]">
+                                                            {activity.asset.domainNumber}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-bold">
+                                                {new Date(activity.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-slate-400 italic">No hay actividad reciente.</p>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
