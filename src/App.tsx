@@ -5,6 +5,8 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { InstallPWA } from './components/InstallPWA';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import ErrorBoundary from './components/ErrorBoundary';
+
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const Assets = React.lazy(() => import('./pages/Assets'));
 const Infrastructure = React.lazy(() => import('./pages/Infrastructure'));
@@ -43,30 +45,31 @@ const LoadingFallback = () => (
 const App: React.FC = () => {
   console.log("App Component Rendering...");
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <InstallPWA />
-        <PWAUpdateNotification />
-        <React.Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <InstallPWA />
+          <PWAUpdateNotification />
+          <React.Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
 
-            {/* Private Routes (All Protected) */}
-            <Route element={<ProtectedRoute />}>
-              {/* Dashboard */}
-              <Route path="/" element={
-                <Layout>
-                  <Dashboard />
-                </Layout>
-              } />
+              {/* Private Routes (All Protected) */}
+              <Route element={<ProtectedRoute />}>
+                {/* Dashboard */}
+                <Route path="/" element={
+                  <Layout>
+                    <Dashboard />
+                  </Layout>
+                } />
 
-              {/* Modules */}
-              <Route path="/assets" element={
-                <Layout>
-                  <Assets />
-                </Layout>
-              } />
+                {/* Modules */}
+                <Route path="/assets" element={
+                  <Layout>
+                    <Assets />
+                  </Layout>
+                } />
               <Route path="/infrastructure" element={<Navigate to="/assets/infrastructure" replace />} />
               <Route path="/maintenance" element={
                 <Layout>
@@ -188,6 +191,7 @@ const App: React.FC = () => {
         </React.Suspense>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 };
 

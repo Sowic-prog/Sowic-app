@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['apple-touch-icon.png'],
         manifest: {
           name: 'SOWIC',
           short_name: 'SOWIC',
@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
               purpose: 'any'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'

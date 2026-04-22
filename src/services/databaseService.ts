@@ -81,13 +81,7 @@ export const databaseService = {
             // If we have no cache at all, do a full fetch
             if (!assetsCache || forceRefresh || !lastSync) {
                 console.log("Performing FULL fetch of assets...");
-                const [
-                    { data: vData },
-                    { data: mData },
-                    { data: itData },
-                    { data: fData },
-                    { data: iData }
-                ] = await Promise.all([
+                const responses = await Promise.all([
                     supabase.from('vehicles').select('*'),
                     supabase.from('machinery').select('*'),
                     supabase.from('it_equipment').select('*'),
@@ -95,12 +89,14 @@ export const databaseService = {
                     supabase.from('infrastructures').select('*')
                 ]);
 
+                const [vData, mData, itData, fData, iData] = responses.map(r => r.data || []);
+
                 const allAssets: Asset[] = [
-                    ...(vData || []).map(a => mapAssetFromDB(a, 'Vehículo')),
-                    ...(mData || []).map(a => mapAssetFromDB(a, 'Equipo/Maquinaria')),
-                    ...(itData || []).map(a => mapAssetFromDB(a, 'Equipos')),
-                    ...(fData || []).map(a => mapAssetFromDB(a, 'Mobiliario')),
-                    ...(iData || []).map(a => mapAssetFromDB(a, 'Inmueble/Infraestructura'))
+                    ...vData.map(a => mapAssetFromDB(a, 'Vehículo')),
+                    ...mData.map(a => mapAssetFromDB(a, 'Equipo/Maquinaria')),
+                    ...itData.map(a => mapAssetFromDB(a, 'Equipos')),
+                    ...fData.map(a => mapAssetFromDB(a, 'Mobiliario')),
+                    ...iData.map(a => mapAssetFromDB(a, 'Inmueble/Infraestructura'))
                 ];
 
                 this.saveToPersistentCache(allAssets);
@@ -109,13 +105,7 @@ export const databaseService = {
                 // INCREMENTAL FETCH: Only rows modified since last sync
                 console.log(`Performing INCREMENTAL fetch since: ${lastSync}`);
                 
-                const [
-                    { data: vNew },
-                    { data: mNew },
-                    { data: itNew },
-                    { data: fNew },
-                    { data: iNew }
-                ] = await Promise.all([
+                const responses = await Promise.all([
                     supabase.from('vehicles').select('*').gt('updated_at', lastSync),
                     supabase.from('machinery').select('*').gt('updated_at', lastSync),
                     supabase.from('it_equipment').select('*').gt('updated_at', lastSync),
@@ -123,12 +113,14 @@ export const databaseService = {
                     supabase.from('infrastructures').select('*').gt('updated_at', lastSync)
                 ]);
 
+                const [vNew, mNew, itNew, fNew, iNew] = responses.map(r => r.data || []);
+
                 const newRows = [
-                    ...(vNew || []).map(a => mapAssetFromDB(a, 'Vehículo')),
-                    ...(mNew || []).map(a => mapAssetFromDB(a, 'Equipo/Maquinaria')),
-                    ...(itNew || []).map(a => mapAssetFromDB(a, 'Equipos')),
-                    ...(fNew || []).map(a => mapAssetFromDB(a, 'Mobiliario')),
-                    ...(iNew || []).map(a => mapAssetFromDB(a, 'Inmueble/Infraestructura'))
+                    ...vNew.map(a => mapAssetFromDB(a, 'Vehículo')),
+                    ...mNew.map(a => mapAssetFromDB(a, 'Equipo/Maquinaria')),
+                    ...itNew.map(a => mapAssetFromDB(a, 'Equipos')),
+                    ...fNew.map(a => mapAssetFromDB(a, 'Mobiliario')),
+                    ...iNew.map(a => mapAssetFromDB(a, 'Inmueble/Infraestructura'))
                 ];
 
                 if (newRows.length > 0) {

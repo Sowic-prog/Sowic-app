@@ -3,11 +3,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, X } from 'lucide-react';
 
 export const PWAUpdateNotification: React.FC = () => {
-  const {
-    offlineReady: [offlineReady, setOfflineReady],
-    needUpdate: [needUpdate, setNeedUpdate],
-    updateServiceWorker,
-  } = useRegisterSW({
+  const sw = useRegisterSW({
     onRegistered(r) {
       console.log('SW Registered:', r);
       // Check for updates every hour
@@ -21,6 +17,11 @@ export const PWAUpdateNotification: React.FC = () => {
       console.log('SW registration error', error);
     },
   });
+
+  // Safe destructuring to handle different versions of vite-plugin-pwa
+  const [offlineReady, setOfflineReady] = Array.isArray(sw?.offlineReady) ? sw.offlineReady : [sw?.offlineReady || false, () => {}];
+  const [needUpdate, setNeedUpdate] = Array.isArray(sw?.needUpdate) ? sw.needUpdate : [sw?.needUpdate || false, () => {}];
+  const updateServiceWorker = sw?.updateServiceWorker;
 
   const close = () => {
     setOfflineReady(false);

@@ -67,8 +67,15 @@ const Dashboard: React.FC = () => {
 
                 // 2. Notifications Logic
                 const dynamicNotifications: Notification[] = [];
-                const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
-                const deletedIds = JSON.parse(localStorage.getItem('deleted_notifications') || '[]');
+                let readIds: string[] = [];
+                let deletedIds: string[] = [];
+                
+                try {
+                    readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                    deletedIds = JSON.parse(localStorage.getItem('deleted_notifications') || '[]');
+                } catch (e) {
+                    console.error('Error parsing notification preferences:', e);
+                }
 
                 // Service Requests -> Notifications
                 const { data: sRequests } = await supabase.from('service_requests').select('*').eq('status', 'Pendiente').limit(5);
